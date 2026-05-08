@@ -189,6 +189,7 @@ const App = () => {
   const [settings, setSettings] = useState({ officialDateId: null });
   const [additionalItems, setAdditionalItems] = useState([]);
   const [payments, setPayments] = useState({});
+  const [attendance, setAttendance] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -264,12 +265,21 @@ const App = () => {
       setPayments(p);
     });
 
+    const unsubAttendance = onSnapshot(collection(db, 'attendance'), (snap) => {
+      const p = {};
+      snap.docs.forEach((d) => {
+        p[d.id] = d.data();
+      });
+      setAttendance(p);
+    });
+
     return () => {
       unsubVotes();
       unsubPrices();
       unsubSettings();
       unsubAddItems();
       unsubPayments();
+      unsubAttendance();
     };
   }, [user]);
 
@@ -369,17 +379,26 @@ const App = () => {
     });
   };
 
+  const allItemsForReport = useMemo(() => {
+    return {
+      comidas: generateCombinedData(staticData.comidasList),
+      bebidas: generateCombinedData(staticData.drinks),
+      velas: generateCombinedData(staticData.velas),
+      fundamento: generateCombinedData(staticData.fundamentoExu),
+    };
+  }, [additionalItems]);
+
   const filteredItems = useMemo(() => {
     const s = searchTerm.toUpperCase();
     const filterDynamic = (list) => list.filter((d) => d.item.includes(s) || d.people.some((p) => p.name.includes(s)));
 
     return {
-      comidas: filterDynamic(generateCombinedData(staticData.comidasList)),
-      bebidas: filterDynamic(generateCombinedData(staticData.drinks)),
-      velas: filterDynamic(generateCombinedData(staticData.velas)),
-      fundamento: filterDynamic(generateCombinedData(staticData.fundamentoExu)),
+      comidas: filterDynamic(allItemsForReport.comidas),
+      bebidas: filterDynamic(allItemsForReport.bebidas),
+      velas: filterDynamic(allItemsForReport.velas),
+      fundamento: filterDynamic(allItemsForReport.fundamento),
     };
-  }, [searchTerm, additionalItems]);
+  }, [searchTerm, allItemsForReport]);
 
   // Todo mundo que confirmou presença aparece aqui.
   const participantsList = useMemo(() => {
@@ -389,6 +408,10 @@ const App = () => {
   // Só essas pessoas entram na divisão financeira da cota.
   const quotaParticipantsList = useMemo(() => {
     return participantsList.filter((name) => !NOMES_FORA_DA_COTA.includes(name));
+  }, [participantsList]);
+
+  const presenceOnlyList = useMemo(() => {
+    return participantsList.filter((name) => NOMES_FORA_DA_COTA.includes(name));
   }, [participantsList]);
 
   const totalParticipants = participantsList.length;
@@ -412,86 +435,356 @@ const App = () => {
   ];
 
   const reportText = useMemo(() => {
-    let report = `Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú\n`;
-    report += `Bàbálórìṣà Geraldo Nunes da Rocha\n`;
-    report += `RELATÓRIO FINAL - OBRIGAÇÃO PRETOS VELHOS 2025\n`;
-    report += `--------------------------------------------------\n\n`;
-    report += `👥 PRESENÇA TOTAL: ${totalParticipants} PESSOAS\n`;
-    report += `💰 PESSOAS NA COTA: ${totalQuotaParticipants} PESSOAS\n`;
-    report += `🚫 FORA DA COTA: ${NOMES_FORA_DA_COTA.join(', ')}\n\n`;
-    report += `💰 RESUMO FINANCEIRO GERAL:\n`;
-    report += `- Custo Total Materiais: ${formatCurrency(totalCost)}\n`;
-    report += `- Valor por Pessoa na Cota: ${formatCurrency(costPerPerson)}\n`;
-    report += `- Total Arrecadado: ${formatCurrency(totalReceived)}\n`;
-    report += `- Pendência Geral: ${formatCurrency(remainingTarget)}\n\n`;
-    report += `--------------------------------------------------\n`;
-    report += `📝 DETALHAMENTO POR PARTICIPANTE DA COTA:\n\n`;
+    const generatedAt = new Date().toLocaleString('pt-BR');
+    const officialDate = dateOptions.find((d) => d.id === settings.officialDateId)?.label || 'NÃO DEFINIDA';
+
+    const getStatus = (name) => attendance[name]?.status || 'pending';
+    const statusLabel = (status) => {
+      if (status === 'attended') return 'FOI';
+      if (status === 'missed') return 'NÃO FOI';
+      return 'NÃO MARCADO';
+    };
+
+    const attendedNames = participantsList.filter((name) => getStatus(name) === 'attended');
+    const missedNames = participantsList.filter((name) => getStatus(name) === 'missed');
+    const pendingAttendanceNames = participantsList.filter((name) => getStatus(name) === 'pending');
+
+    const paidNames = [];
+    const partialNames = [];
+    const pendingPaymentNames = [];
 
     quotaParticipantsList.forEach((name) => {
       const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
-      const isFullyPaid = costPerPerson > 0 && pay.paid >= costPerPerson;
-      const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - pay.paid) : 0;
-      const status = isFullyPaid ? 'PAGO (QUITADO)' : pay.paid > 0 ? 'PAGO (PARCIAL)' : 'PENDENTE';
+      const paid = Number(pay.paid) || 0;
+
+      if (costPerPerson > 0 && paid >= costPerPerson) {
+        paidNames.push(name);
+      } else if (paid > 0) {
+        partialNames.push(name);
+      } else {
+        pendingPaymentNames.push(name);
+      }
+    });
+
+    const writeList = (title, list, emptyMessage = 'Nenhum registro.') => {
+      let text = `${title}
+`;
+      if (list.length === 0) {
+        text += `- ${emptyMessage}
+
+`;
+        return text;
+      }
+
+      list.forEach((name) => {
+        text += `- ${name}
+`;
+      });
+      text += `
+`;
+      return text;
+    };
+
+    let report = ``;
+    report += `══════════════════════════════════════════════════\n`;
+    report += `          RELATÓRIO FINAL DA OBRIGAÇÃO\n`;
+    report += `              PRETOS VELHOS 2026\n`;
+    report += `══════════════════════════════════════════════════\n\n`;
+ 
+    report += `Casa: Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú\n`;
+    report += `Bàbálórìṣà: Geraldo Nunes da Rocha\n\n`;
+    report += `Data oficial: ${officialDate}\n\n`;
+    report += `Gerado em: ${generatedAt}\n\n`;
+    
+    report += `Adorei as Almas. 🍃\n`;
+    report += `--------------------------------------------------\n\n`;
+
+    report += `1. RESUMO GERAL
+
+`;
+    report += `- Data oficial: ${officialDate}
+`;
+    report += `- Presença total confirmada: ${totalParticipants} pessoa(s)
+`;
+    report += `- Pessoas na cota: ${totalQuotaParticipants} pessoa(s)
+`;
+    report += `- Pessoas sem cota: ${presenceOnlyList.length} pessoa(s)
+`;
+    report += `- Fora da cota: ${presenceOnlyList.length > 0 ? presenceOnlyList.join(', ') : 'Ninguém'}
+
+`;
+
+    report += `2. RESUMO FINANCEIRO
+
+`;
+    report += `- Custo total dos materiais: ${formatCurrency(totalCost)}
+`;
+    report += `- Valor por pessoa na cota: ${formatCurrency(costPerPerson)}
+`;
+    report += `- Total arrecadado: ${formatCurrency(totalReceived)}
+`;
+    report += `- Pendência geral: ${formatCurrency(remainingTarget)}
+
+`;
+
+    report += `3. RESUMO DE COMPARECIMENTO
+
+`;
+    report += `- Confirmaram presença: ${totalParticipants} pessoa(s)
+`;
+    report += `- Foram: ${attendedNames.length} pessoa(s)
+`;
+    report += `- Não foram: ${missedNames.length} pessoa(s)
+`;
+    report += `- Não marcados: ${pendingAttendanceNames.length} pessoa(s)
+
+`;
+    report += writeList('PESSOAS QUE FORAM:', attendedNames, 'Ninguém marcado como foi.');
+    report += writeList('PESSOAS QUE NÃO FORAM:', missedNames, 'Ninguém marcado como não foi.');
+    report += writeList('PESSOAS AINDA NÃO MARCADAS:', pendingAttendanceNames, 'Todos foram marcados.');
+
+    report += `--------------------------------------------------
+`;
+    report += `4. STATUS DOS PAGAMENTOS
+
+`;
+    report += writeList('PESSOAS QUITADAS:', paidNames, 'Ninguém quitado.');
+
+    report += `PAGAMENTOS PARCIAIS:
+`;
+    if (partialNames.length === 0) {
+      report += `- Nenhum pagamento parcial.
+
+`;
+    } else {
+      partialNames.forEach((name) => {
+        const pay = payments[name] || { paid: 0 };
+        const balance = Math.max(0, costPerPerson - (Number(pay.paid) || 0));
+        report += `- ${name}: pagou ${formatCurrency(pay.paid)} | falta ${formatCurrency(balance)}
+`;
+      });
+      report += `
+`;
+    }
+
+    report += `PESSOAS PENDENTES:
+`;
+    if (pendingPaymentNames.length === 0) {
+      report += `- Ninguém pendente.
+
+`;
+    } else {
+      pendingPaymentNames.forEach((name) => {
+        report += `- ${name}: falta ${formatCurrency(costPerPerson)}
+`;
+      });
+      report += `
+`;
+    }
+
+    report += `--------------------------------------------------
+`;
+    report += `5. DETALHAMENTO DAS PESSOAS NA COTA
+
+`;
+
+    quotaParticipantsList.forEach((name) => {
+      const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
+      const paid = Number(pay.paid) || 0;
+      const isFullyPaid = costPerPerson > 0 && paid >= costPerPerson;
+      const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - paid) : 0;
+      const status = isFullyPaid ? 'PAGO (QUITADO)' : paid > 0 ? 'PAGO (PARCIAL)' : 'PENDENTE';
 
       const userItems = [];
-      const allCategories = [...filteredItems.comidas, ...filteredItems.bebidas, ...filteredItems.velas, ...filteredItems.fundamento];
+      const allCategories = [...allItemsForReport.comidas, ...allItemsForReport.bebidas, ...allItemsForReport.velas, ...allItemsForReport.fundamento];
 
       allCategories.forEach((item) => {
         const found = item.people.find((p) => p.name === name);
         if (found) userItems.push(`${item.item} (${found.qty})`);
       });
 
-      report += `👤 NOME: ${name}\n`;
-      report += `   STATUS: ${status}\n`;
-      report += `   VALOR PAGO: ${formatCurrency(pay.paid)}\n`;
-      report += `   VALOR FALTANTE: ${formatCurrency(balance)}\n`;
-      report += `   O QUE LEVOU: ${userItems.length > 0 ? userItems.join(', ') : 'NENHUM ITEM SELECIONADO'}\n`;
-      if (pay.proof) report += `   COMPROVANTE: ${pay.proof}\n`;
-      if (pay.updatedAt) report += `   ÚLTIMA ATUALIZAÇÃO: ${new Date(pay.updatedAt).toLocaleString('pt-BR')}\n`;
-      report += `\n`;
+      report += `👤 NOME: ${name}
+`;
+      report += `   COMPARECIMENTO: ${statusLabel(getStatus(name))}
+`;
+      report += `   STATUS FINANCEIRO: ${status}
+`;
+      report += `   VALOR PAGO: ${formatCurrency(paid)}
+`;
+      report += `   VALOR FALTANTE: ${formatCurrency(balance)}
+`;
+      report += `   O QUE LEVOU: ${userItems.length > 0 ? userItems.join(', ') : 'NENHUM ITEM SELECIONADO'}
+`;
+      if (pay.proof) report += `   COMPROVANTE: ${pay.proof}
+`;
+      if (pay.updatedAt) report += `   ÚLTIMA ATUALIZAÇÃO: ${new Date(pay.updatedAt).toLocaleString('pt-BR')}
+`;
+      report += `
+`;
     });
 
-    report += `--------------------------------------------------\n`;
-    report += `📦 RESUMO DE MATERIAIS POR CATEGORIA:\n\n`;
+    report += `--------------------------------------------------
+`;
+    report += `6. PESSOAS SEM COTA
+
+`;
+
+    if (presenceOnlyList.length === 0) {
+      report += `- Nenhuma pessoa sem cota.
+
+`;
+    } else {
+      presenceOnlyList.forEach((name) => {
+        report += `👤 NOME: ${name}
+`;
+        report += `   COMPARECIMENTO: ${statusLabel(getStatus(name))}
+`;
+        report += `   STATUS FINANCEIRO: FORA DA COTA
+
+`;
+      });
+    }
+
+    report += `--------------------------------------------------
+`;
+    report += `7. RESUMO DE MATERIAIS POR CATEGORIA
+
+`;
 
     const cats = [
-      { title: 'MESA DE COMIDAS', data: filteredItems.comidas },
-      { title: 'CAFÉ E BEBIDAS', data: filteredItems.bebidas },
-      { title: 'VELAS DE SÉTIMO DIA', data: filteredItems.velas },
-      { title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO', data: filteredItems.fundamento },
+      { title: 'MESA DE COMIDAS', data: allItemsForReport.comidas },
+      { title: 'CAFÉ E BEBIDAS', data: allItemsForReport.bebidas },
+      { title: 'VELAS DE SÉTIMO DIA', data: allItemsForReport.velas },
+      { title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO', data: allItemsForReport.fundamento },
     ];
 
     cats.forEach((cat) => {
-      report += `[${cat.title}]\n`;
+      report += `[${cat.title}]
+`;
       cat.data.forEach((item) => {
         const resps = item.people.map((p) => `${p.name} (${p.qty})`).join(', ');
-        if (resps) report += `  - ${item.item}: ${resps}\n`;
+        if (resps) report += `  - ${item.item}: ${resps}
+`;
       });
-      report += `\n`;
+      report += `
+`;
     });
 
+    report += `--------------------------------------------------
+`;
+    report += `8. OBSERVAÇÕES FINAIS
+
+`;
+    report += `Este relatório consolida as informações registradas no dashboard da Obrigação de Pretos Velhos, incluindo confirmações, comparecimento, contribuições financeiras e materiais organizados.
+
+`;
+    report += `As pessoas fora da cota foram mantidas no controle de presença, mas não participaram da divisão dos custos dos materiais.
+
+`;
+    report += `Saravá Pretos Velhos.
+`;
+    report += `Adorei as Almas.
+`;
+
     return report;
-  }, [totalParticipants, totalQuotaParticipants, quotaParticipantsList, totalCost, costPerPerson, totalReceived, remainingTarget, filteredItems, payments]);
+  }, [settings.officialDateId, totalParticipants, totalQuotaParticipants, participantsList, quotaParticipantsList, presenceOnlyList, totalCost, costPerPerson, totalReceived, remainingTarget, allItemsForReport, payments, attendance]);
 
   const handleGeneratePDF = () => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    const escapedReport = reportText
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
 
-    printWindow.document.write(`
-      <html>
+    const html = `<!doctype html>
+      <html lang="pt-BR">
         <head>
+          <meta charset="UTF-8" />
           <title>Relatório - Obrigação Pretos Velhos</title>
           <style>
-            body { font-family: 'Courier New', Courier, monospace; padding: 40px; line-height: 1.5; font-size: 13px; color: #333; white-space: pre-wrap; text-align: left; }
-            @media print { @page { margin: 15mm; } }
+            body {
+              margin: 0;
+              padding: 40px;
+              background: #f7f3f0;
+              color: #2d1b18;
+              font-family: 'Courier New', Courier, monospace;
+            }
+
+            .page {
+              max-width: 800px;
+              margin: 0 auto;
+              background: #ffffff;
+              padding: 40px;
+              border-radius: 24px;
+              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            }
+
+            pre {
+              white-space: pre-wrap;
+              word-wrap: break-word;
+              font-size: 13px;
+              line-height: 1.6;
+              margin: 0;
+            }
+
+            .print-button {
+              position: fixed;
+              top: 16px;
+              right: 16px;
+              border: 0;
+              border-radius: 999px;
+              padding: 12px 18px;
+              background: #d97706;
+              color: white;
+              font-weight: 900;
+              cursor: pointer;
+              box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
+            }
+
+            @media print {
+              body {
+                background: #ffffff;
+                padding: 0;
+              }
+
+              .page {
+                max-width: none;
+                margin: 0;
+                padding: 0;
+                box-shadow: none;
+                border-radius: 0;
+              }
+
+              .print-button {
+                display: none;
+              }
+
+              @page {
+                margin: 15mm;
+              }
+            }
           </style>
         </head>
-        <body>${reportText}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+        <body>
+          <button class="print-button" onclick="window.print()">Salvar como PDF</button>
+          <div class="page">
+            <pre>${escapedReport}</pre>
+          </div>
+        </body>
+      </html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const printWindow = window.open(url, '_blank');
+
+    if (!printWindow) {
+      URL.revokeObjectURL(url);
+      alert('O navegador bloqueou a abertura do relatório. Permita pop-ups para este site e tente novamente.');
+      return;
+    }
+
+    setTimeout(() => {
+      URL.revokeObjectURL(url);
+    }, 60000);
   };
 
   const handleSaveResourceEntry = async (itemName, section) => {
@@ -619,6 +912,26 @@ const App = () => {
     } catch (e) {
       console.error(e);
     }
+  };
+
+  const updateAttendance = async (userName, status) => {
+    if (!user || !isAdmin) return;
+    const id = normalizeName(userName);
+
+    try {
+      await setDoc(doc(db, 'attendance', id), {
+        userName: id,
+        status,
+        updatedAt: Date.now(),
+      });
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const getAttendanceStatus = (userName) => {
+    const id = normalizeName(userName);
+    return attendance[id]?.status || 'pending';
   };
 
   const tryAdminLogin = () => {
@@ -965,7 +1278,7 @@ const App = () => {
                   <div>
                     <h2 className="text-lg md:text-xl font-black text-stone-900 uppercase tracking-tighter leading-none">Contribuições</h2>
                     <p className="text-[9px] md:text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Cota por pessoa: {formatCurrency(costPerPerson)}</p>
-                    <p className="text-[8px] font-bold text-amber-600 uppercase tracking-widest mt-1">Na cota: {totalQuotaParticipants} • Presença total: {totalParticipants}</p>
+                    <p className="text-[8px] font-bold text-amber-600 uppercase tracking-widest mt-1">Na cota: {totalQuotaParticipants} • Sem cota: {presenceOnlyList.length} • Presença total: {totalParticipants}</p>
                   </div>
                 </div>
 
@@ -975,6 +1288,11 @@ const App = () => {
                     <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Somente leitura</span>
                   </div>
                 )}
+              </div>
+
+              <div className="mb-5 flex items-center gap-2 text-stone-900 font-black uppercase text-[10px] tracking-widest">
+                <DollarSign size={16} className="text-amber-600" />
+                Contribuições
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
@@ -1031,10 +1349,51 @@ const App = () => {
                           </a>
                         )}
                       </div>
+
+                      {isAdmin && (
+                        <AttendanceControl
+                          status={getAttendanceStatus(name)}
+                          onChange={(status) => updateAttendance(name, status)}
+                        />
+                      )}
                     </div>
                   );
                 })}
               </div>
+
+              {presenceOnlyList.length > 0 && (
+                <div className="mt-10 pt-8 border-t border-stone-100">
+                  <div className="mb-5 flex items-center gap-2 text-stone-900 font-black uppercase text-[10px] tracking-widest">
+                    <Users2 size={16} className="text-amber-600" />
+                    Presenças sem cota
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
+                    {presenceOnlyList.map((name) => (
+                      <div key={name} className="p-4 rounded-[2rem] bg-amber-50/40 border border-amber-100 space-y-4 shadow-sm hover:shadow-md transition-all h-fit">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-white rounded-2xl shadow-sm">
+                              <Heart size={14} className="text-red-500 fill-red-500/10" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-black text-stone-900 uppercase tracking-tight">{String(name)}</p>
+                              <p className="text-[8px] font-black text-amber-700 uppercase tracking-widest mt-1">Fora da cota</p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {isAdmin && (
+                          <AttendanceControl
+                            status={getAttendanceStatus(name)}
+                            onChange={(status) => updateAttendance(name, status)}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {isAdmin && (
                 <div className="mt-8 pt-6 border-t border-stone-100 flex justify-center">
@@ -1166,6 +1525,45 @@ const App = () => {
           </div>
         </div>
       )}
+    </div>
+  );
+};
+
+const AttendanceControl = ({ status, onChange }) => {
+  const optionClass = (option) => {
+    const isActive = status === option;
+
+    if (option === 'attended') {
+      return isActive
+        ? 'bg-green-600 text-white border-green-700 shadow-md'
+        : 'bg-white text-green-700 border-green-100 hover:bg-green-50';
+    }
+
+    if (option === 'missed') {
+      return isActive
+        ? 'bg-red-600 text-white border-red-700 shadow-md'
+        : 'bg-white text-red-700 border-red-100 hover:bg-red-50';
+    }
+
+    return isActive
+      ? 'bg-stone-700 text-white border-stone-800 shadow-md'
+      : 'bg-white text-stone-500 border-stone-100 hover:bg-stone-50';
+  };
+
+  return (
+    <div className="pt-3 border-t border-stone-100 space-y-2">
+      <p className="text-[7px] font-black text-stone-400 uppercase tracking-widest ml-1">Comparecimento</p>
+      <div className="grid grid-cols-3 gap-2">
+        <button type="button" onClick={() => onChange('attended')} className={`py-2 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all ${optionClass('attended')}`}>
+          Foi
+        </button>
+        <button type="button" onClick={() => onChange('missed')} className={`py-2 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all ${optionClass('missed')}`}>
+          Não foi
+        </button>
+        <button type="button" onClick={() => onChange('pending')} className={`py-2 rounded-xl border text-[8px] font-black uppercase tracking-widest transition-all ${optionClass('pending')}`}>
+          Limpar
+        </button>
+      </div>
     </div>
   );
 };
