@@ -648,7 +648,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
         <Loader2 className="animate-spin text-amber-600" size={48} />
-        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando à Zeladoria...</p>
+        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando ao Ilè...</p>
       </div>
     );
   }
@@ -661,8 +661,8 @@ const App = () => {
         <Leaf size={400} />
       </div>
 
-      <header className="bg-gradient-to-b from-[#2d1b18] to-[#1a0f0d] text-white p-6 pb-14 rounded-b-[3.5rem] shadow-2xl relative z-10 border-b-8 border-black/40">
-        <div className="max-w-md md:max-w-4xl lg:max-w-6xl mx-auto text-center space-y-3">
+      <header className="bg-gradient-to-b from-[#2d1b18] to-[#1a0f0d] text-white px-4 sm:px-6 pt-8 sm:pt-10 pb-12 sm:pb-14 lg:pb-16 rounded-b-[2.5rem] sm:rounded-b-[3.5rem] shadow-2xl relative z-10 border-b-8 border-black/40">
+        <div className="w-full max-w-[1100px] mx-auto text-center space-y-3">
           <div className="flex justify-center">
             <div className="p-4 bg-white/10 rounded-full border-2 border-amber-500/30 backdrop-blur-md shadow-[0_0_20px_rgba(245,158,11,0.2)]">
               <Coffee className="text-amber-500 animate-bounce-subtle" size={42} />
@@ -671,7 +671,7 @@ const App = () => {
 
           <div>
             <h2 className="text-sm md:text-lg font-bold text-white/80 uppercase tracking-[0.4em] mb-1 transition-all">OBRIGAÇÃO</h2>
-            <h1 className="text-4xl md:text-6xl font-black uppercase tracking-[0.05em] leading-none drop-shadow-lg text-amber-500 transition-all">PRETOS VELHOS</h1>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black uppercase tracking-[0.05em] leading-none drop-shadow-lg text-amber-500 transition-all">PRETOS VELHOS</h1>
           </div>
 
           <div className="flex items-center justify-center gap-3 mt-4">
@@ -697,7 +697,7 @@ const App = () => {
         </div>
       </header>
 
-      <main className="max-w-md md:max-w-4xl lg:max-w-6xl mx-auto px-4 -mt-8 space-y-4 relative z-20">
+      <main className="w-full max-w-[1100px] mx-auto px-4 sm:px-6 lg:px-8 -mt-8 space-y-4 relative z-20">
         {view === 'dashboard' && (
           <div className="animate-in fade-in duration-500 space-y-4">
             {!settings.officialDateId && (
