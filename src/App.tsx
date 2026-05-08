@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import {
   collection,
@@ -47,10 +47,10 @@ import { auth, db } from './config/firebase';
 import { staticData } from './data/staticData';
 import { formatCurrency } from './utils/formatters';
 import { normalizeName } from './utils/normalizeName';
+import { buildReportText } from './utils/report';
 
 const ADMIN_PIN = '2026';
 
-// Regra da cota: essas pessoas aparecem na presença, mas não entram na divisão financeira.
 const NOMES_FORA_DA_COTA = ['CAMILA21', 'CAMILA 21', 'BIA'];
 
 const ItemIcon = ({ emoji, color = 'bg-stone-100' }: { emoji: string; color?: string }) => (
@@ -93,7 +93,6 @@ const App = () => {
   const [newItemResp, setNewItemResp] = useState('');
   const [newItemQty, setNewItemQty] = useState('');
 
-  // Inicialização e Auth
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -120,7 +119,6 @@ const App = () => {
     };
   }, []);
 
-  // Botão voltar ao topo
   useEffect(() => {
     const handleScroll = () => {
       setShowBackToTop(window.scrollY > 500);
@@ -134,7 +132,6 @@ const App = () => {
     };
   }, []);
 
-  // Listeners de dados
   useEffect(() => {
     if (!user || !db) return;
 
@@ -218,12 +215,17 @@ const App = () => {
         { resp: 'SHAYLANE', qty: 1 },
       ],
       CERVEJA: { resp: 'OPCIONAL', qty: 0, emoji: '🍺' },
-      'VELAS DE SÉTIMO DIA': ['MARIANA', 'BRUNA', 'FERNANDO', 'CAIO', 'ANDRESSA', 'MAYARA'].map(
-        (n) => ({
-          resp: n,
-          qty: 1,
-        })
-      ),
+      'VELAS DE SÉTIMO DIA': [
+        'MARIANA',
+        'BRUNA',
+        'FERNANDO',
+        'CAIO',
+        'ANDRESSA',
+        'MAYARA',
+      ].map((n) => ({
+        resp: n,
+        qty: 1,
+      })),
       LARANJAS: { resp: 'RAFAEL', qty: 9, emoji: '🍊' },
       'PALMA BANANA': { resp: 'RAFAEL', qty: 1, emoji: '🍌' },
       ABACAXIS: { resp: 'RAFAEL', qty: 2, emoji: '🍍' },
@@ -358,181 +360,21 @@ const App = () => {
   }, [isReportOpen]);
 
   const reportText = useMemo(() => {
-    const getStatus = (name: string) => attendance[name]?.status || 'pending';
-
-    const statusLabel = (status: string) => {
-      if (status === 'attended') return 'FOI';
-      if (status === 'missed') return 'NÃO FOI';
-      return 'NÃO MARCADO';
-    };
-
-    const attendedNames = participantsList.filter((name) => getStatus(name) === 'attended');
-    const missedNames = participantsList.filter((name) => getStatus(name) === 'missed');
-    const pendingAttendanceNames = participantsList.filter((name) => getStatus(name) === 'pending');
-
-    const paidNames: string[] = [];
-    const partialNames: string[] = [];
-    const pendingPaymentNames: string[] = [];
-
-    quotaParticipantsList.forEach((name) => {
-      const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
-      const paid = Number(pay.paid) || 0;
-
-      if (costPerPerson > 0 && paid >= costPerPerson) {
-        paidNames.push(name);
-      } else if (paid > 0) {
-        partialNames.push(name);
-      } else {
-        pendingPaymentNames.push(name);
-      }
+    return buildReportText({
+      officialDate,
+      totalParticipants,
+      totalQuotaParticipants,
+      participantsList,
+      quotaParticipantsList,
+      presenceOnlyList,
+      totalCost,
+      costPerPerson,
+      totalReceived,
+      remainingTarget,
+      allItemsForReport,
+      payments,
+      attendance,
     });
-
-    const writeList = (title: string, list: string[], emptyMessage = 'Nenhum registro.') => {
-      let text = `${title}\n`;
-
-      if (list.length === 0) {
-        text += `- ${emptyMessage}\n\n`;
-        return text;
-      }
-
-      list.forEach((name) => {
-        text += `- ${name}\n`;
-      });
-
-      text += `\n`;
-      return text;
-    };
-
-    let report = ``;
-
-    report += `1. RESUMO GERAL\n\n`;
-    report += `- Data oficial: ${officialDate}\n`;
-    report += `- Presença total confirmada: ${totalParticipants} pessoa(s)\n`;
-    report += `- Pessoas na cota: ${totalQuotaParticipants} pessoa(s)\n`;
-    report += `- Pessoas sem cota: ${presenceOnlyList.length} pessoa(s)\n`;
-    report += `- Fora da cota: ${presenceOnlyList.length > 0 ? presenceOnlyList.join(', ') : 'Ninguém'}\n\n`;
-
-    report += `2. RESUMO FINANCEIRO\n\n`;
-    report += `- Custo total dos materiais: ${formatCurrency(totalCost)}\n`;
-    report += `- Valor por pessoa na cota: ${formatCurrency(costPerPerson)}\n`;
-    report += `- Total arrecadado: ${formatCurrency(totalReceived)}\n`;
-    report += `- Pendência geral: ${formatCurrency(remainingTarget)}\n\n`;
-
-    report += `3. RESUMO DE COMPARECIMENTO\n\n`;
-    report += `- Confirmaram presença: ${totalParticipants} pessoa(s)\n`;
-    report += `- Foram: ${attendedNames.length} pessoa(s)\n`;
-    report += `- Não foram: ${missedNames.length} pessoa(s)\n`;
-    report += `- Não marcados: ${pendingAttendanceNames.length} pessoa(s)\n\n`;
-
-    report += writeList('PESSOAS QUE FORAM:', attendedNames, 'Ninguém marcado como foi.');
-    report += writeList('PESSOAS QUE NÃO FORAM:', missedNames, 'Ninguém marcado como não foi.');
-    report += writeList('PESSOAS AINDA NÃO MARCADAS:', pendingAttendanceNames, 'Todos foram marcados.');
-
-    report += `4. STATUS DOS PAGAMENTOS\n\n`;
-    report += writeList('PESSOAS QUITADAS:', paidNames, 'Ninguém quitado.');
-
-    report += `PAGAMENTOS PARCIAIS:\n`;
-
-    if (partialNames.length === 0) {
-      report += `- Nenhum pagamento parcial.\n\n`;
-    } else {
-      partialNames.forEach((name) => {
-        const pay = payments[name] || { paid: 0 };
-        const paid = Number(pay.paid) || 0;
-        const balance = Math.max(0, costPerPerson - paid);
-
-        report += `- ${name}: pagou ${formatCurrency(paid)} | falta ${formatCurrency(balance)}\n`;
-      });
-
-      report += `\n`;
-    }
-
-    report += `PESSOAS PENDENTES:\n`;
-
-    if (pendingPaymentNames.length === 0) {
-      report += `- Ninguém pendente.\n\n`;
-    } else {
-      pendingPaymentNames.forEach((name) => {
-        report += `- ${name}: falta ${formatCurrency(costPerPerson)}\n`;
-      });
-
-      report += `\n`;
-    }
-
-    report += `5. DETALHAMENTO DAS PESSOAS NA COTA\n\n`;
-
-    quotaParticipantsList.forEach((name) => {
-      const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
-      const paid = Number(pay.paid) || 0;
-      const isFullyPaid = costPerPerson > 0 && paid >= costPerPerson;
-      const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - paid) : 0;
-      const status = isFullyPaid ? 'PAGO (QUITADO)' : paid > 0 ? 'PAGO (PARCIAL)' : 'PENDENTE';
-
-      const userItems: string[] = [];
-      const allCategories = [
-        ...allItemsForReport.comidas,
-        ...allItemsForReport.bebidas,
-        ...allItemsForReport.velas,
-        ...allItemsForReport.fundamento,
-      ];
-
-      allCategories.forEach((item) => {
-        const found = item.people.find((p: any) => p.name === name);
-        if (found) userItems.push(`${item.item} (${found.qty})`);
-      });
-
-      report += `👤 NOME: ${name}\n`;
-      report += `   COMPARECIMENTO: ${statusLabel(getStatus(name))}\n`;
-      report += `   STATUS FINANCEIRO: ${status}\n`;
-      report += `   VALOR PAGO: ${formatCurrency(paid)}\n`;
-      report += `   VALOR FALTANTE: ${formatCurrency(balance)}\n`;
-      report += `   O QUE LEVOU: ${userItems.length > 0 ? userItems.join(', ') : 'NENHUM ITEM SELECIONADO'}\n`;
-
-      if (pay.proof) report += `   COMPROVANTE: ${pay.proof}\n`;
-      if (pay.updatedAt) report += `   ÚLTIMA ATUALIZAÇÃO: ${new Date(pay.updatedAt).toLocaleString('pt-BR')}\n`;
-
-      report += `\n`;
-    });
-
-    report += `6. PESSOAS SEM COTA\n\n`;
-
-    if (presenceOnlyList.length === 0) {
-      report += `- Nenhuma pessoa sem cota.\n\n`;
-    } else {
-      presenceOnlyList.forEach((name) => {
-        report += `👤 NOME: ${name}\n`;
-        report += `   COMPARECIMENTO: ${statusLabel(getStatus(name))}\n`;
-        report += `   STATUS FINANCEIRO: FORA DA COTA\n\n`;
-      });
-    }
-
-    report += `7. RESUMO DE MATERIAIS POR CATEGORIA\n\n`;
-
-    const cats = [
-      { title: 'MESA DE COMIDAS', data: allItemsForReport.comidas },
-      { title: 'CAFÉ E BEBIDAS', data: allItemsForReport.bebidas },
-      { title: 'VELAS DE SÉTIMO DIA', data: allItemsForReport.velas },
-      { title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO', data: allItemsForReport.fundamento },
-    ];
-
-    cats.forEach((cat) => {
-      report += `[${cat.title}]\n`;
-
-      cat.data.forEach((item) => {
-        const resps = item.people.map((p: any) => `${p.name} (${p.qty})`).join(', ');
-        if (resps) report += `  - ${item.item}: ${resps}\n`;
-      });
-
-      report += `\n`;
-    });
-
-    report += `8. OBSERVAÇÕES FINAIS\n\n`;
-    report += `Este relatório consolida as informações registradas no dashboard da Obrigação de Pretos Velhos, incluindo confirmações, comparecimento, contribuições financeiras e materiais organizados.\n\n`;
-    report += `As pessoas fora da cota foram mantidas no controle de presença, mas não participaram da divisão dos custos dos materiais.\n\n`;
-    report += `Saravá Pretos Velhos.\n`;
-    report += `Adorei as Almas.\n`;
-
-    return report;
   }, [
     officialDate,
     totalParticipants,
@@ -761,6 +603,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
         <Loader2 className="animate-spin text-amber-600" size={48} />
+
         <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">
           Conectando ao Ilè...
         </p>
