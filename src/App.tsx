@@ -35,9 +35,11 @@ import {
   Lock,
   Unlock,
   FileDown,
+  FolderPlus,
 } from 'lucide-react';
 
 import AddResourceItemModal from './components/AddResourceItemModal';
+import AddResourceSectionModal from './components/AddResourceSectionModal';
 import AttendanceControl from './components/AttendanceControl';
 import BackToTopButton from './components/BackToTopButton';
 import CurrencyInput from './components/CurrencyInput';
@@ -62,6 +64,63 @@ const ItemIcon = ({ emoji, color = 'bg-stone-100' }: { emoji: string; color?: st
   </div>
 );
 
+const createEmojiIcon = (emoji: string) => {
+  return function EmojiIcon({ className }: { className?: string; size?: number }) {
+    return <span className={`text-base leading-none ${className || ''}`}>{emoji}</span>;
+  };
+};
+
+const BASE_RESOURCE_SECTIONS = [
+  {
+    id: null,
+    title: 'MESA DE COMIDAS',
+    emoji: '🍽️',
+    icon: ChefHat,
+    color: 'text-amber-900',
+    bgColor: 'bg-amber-100',
+    baseItems: staticData.comidasList,
+    hideQty: true,
+    order: 1,
+    canDelete: false,
+  },
+  {
+    id: null,
+    title: 'CAFÉ E BEBIDAS',
+    emoji: '☕',
+    icon: Coffee,
+    color: 'text-[#3e2723]',
+    bgColor: 'bg-stone-200',
+    baseItems: staticData.drinks,
+    hideQty: false,
+    order: 2,
+    canDelete: false,
+  },
+  {
+    id: null,
+    title: 'VELAS DE SÉTIMO DIA',
+    emoji: '🕯️',
+    icon: Flame,
+    color: 'text-orange-900',
+    bgColor: 'bg-orange-50',
+    baseItems: staticData.velas,
+    hideQty: false,
+    order: 3,
+    canDelete: false,
+  },
+  {
+    id: null,
+    title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO',
+    emoji: '✨',
+    icon: Sparkles,
+    color: 'text-red-900',
+    bgColor: 'bg-red-50',
+    baseItems: staticData.fundamentoExu,
+    hideQty: false,
+    order: 4,
+    canDelete: false,
+  },
+];
+
 const App = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -74,6 +133,7 @@ const App = () => {
   });
   const [additionalItems, setAdditionalItems] = useState<any[]>([]);
   const [resourceItems, setResourceItems] = useState<any[]>([]);
+  const [resourceSections, setResourceSections] = useState<any[]>([]);
   const [payments, setPayments] = useState<Record<string, any>>({});
   const [attendance, setAttendance] = useState<Record<string, any>>({});
 
@@ -83,6 +143,7 @@ const App = () => {
   const [isReportOpen, setIsReportOpen] = useState(false);
 
   const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  const [isNewSectionModalOpen, setIsNewSectionModalOpen] = useState(false);
   const [newItemDefaultSection, setNewItemDefaultSection] = useState('MESA DE COMIDAS');
 
   const [adminInput, setAdminInput] = useState('');
@@ -168,6 +229,10 @@ const App = () => {
       setResourceItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubResourceSections = onSnapshot(collection(db, 'resource_sections'), (snap) => {
+      setResourceSections(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     const unsubPayments = onSnapshot(collection(db, 'payments'), (snap) => {
       const p: Record<string, any> = {};
 
@@ -194,19 +259,61 @@ const App = () => {
       unsubSettings();
       unsubAddItems();
       unsubResourceItems();
+      unsubResourceSections();
       unsubPayments();
       unsubAttendance();
     };
   }, [user]);
 
+  const resourceSectionsForRender = useMemo(() => {
+    const baseTitles = BASE_RESOURCE_SECTIONS.map((section) => normalizeName(section.title));
+
+    const dynamicSections = resourceSections
+      .filter((section) => section.active !== false)
+      .map((section) => {
+        const title = normalizeName(section.title);
+        const emoji = section.emoji || '📦';
+
+        return {
+          id: section.id,
+          title,
+          emoji,
+          icon: createEmojiIcon(emoji),
+          color: 'text-stone-900',
+          bgColor: 'bg-stone-100',
+          baseItems: [],
+          hideQty: false,
+          order: Number(section.order) || 999,
+          at: Number(section.at) || 0,
+          canDelete: true,
+        };
+      })
+      .filter((section) => !baseTitles.includes(section.title));
+
+    return [...BASE_RESOURCE_SECTIONS, ...dynamicSections].sort((a, b) => {
+      const orderDiff = (Number(a.order) || 999) - (Number(b.order) || 999);
+
+      if (orderDiff !== 0) return orderDiff;
+
+      return (Number((a as any).at) || 0) - (Number((b as any).at) || 0);
+    });
+  }, [resourceSections]);
+
   const getResourceItemNamesBySection = (section: string) => {
+    const sectionName = normalizeName(section);
+
     return resourceItems
-      .filter((item) => item.section === section && item.active !== false)
+      .filter((item) => normalizeName(item.section) === sectionName && item.active !== false)
       .map((item) => normalizeName(item.item));
   };
 
   const mergeItemNames = (baseItems: string[], section: string) => {
-    return [...new Set([...baseItems.map((item) => normalizeName(item)), ...getResourceItemNamesBySection(section)])];
+    return [
+      ...new Set([
+        ...baseItems.map((item) => normalizeName(item)),
+        ...getResourceItemNamesBySection(section),
+      ]),
+    ];
   };
 
   const generateCombinedData = (nameList: string[]) => {
@@ -243,12 +350,18 @@ const App = () => {
 
       additionalItems
         .filter((entry) => {
-          return entry.item === name && Number(entry.qty) > 0 && entry.section !== 'removed';
+          return (
+            normalizeName(entry.item) === name &&
+            Number(entry.qty) > 0 &&
+            entry.section !== 'removed'
+          );
         })
         .sort((a, b) => (Number(a.at) || 0) - (Number(b.at) || 0))
         .forEach((entry) => {
-          responsiblesMap[entry.resp] = {
-            name: entry.resp,
+          const respName = normalizeName(entry.resp);
+
+          responsiblesMap[respName] = {
+            name: respName,
             qty: Number(entry.qty) || 1,
             id: entry.id,
             item: name,
@@ -268,30 +381,34 @@ const App = () => {
     });
   };
 
-  const allItemsForReport = useMemo(() => {
-    return {
-      comidas: generateCombinedData(mergeItemNames(staticData.comidasList, 'MESA DE COMIDAS')),
-      bebidas: generateCombinedData(mergeItemNames(staticData.drinks, 'CAFÉ E BEBIDAS')),
-      velas: generateCombinedData(mergeItemNames(staticData.velas, 'VELAS DE SÉTIMO DIA')),
-      fundamento: generateCombinedData(
-        mergeItemNames(staticData.fundamentoExu, 'FUNDAMENTOS DE EXU ONAN E CATIÇO')
-      ),
-    };
-  }, [additionalItems, resourceItems]);
+  const sectionsWithItems = useMemo(() => {
+    return resourceSectionsForRender.map((section) => {
+      const itemNames = mergeItemNames(section.baseItems || [], section.title);
 
-  const filteredItems = useMemo(() => {
+      return {
+        ...section,
+        items: generateCombinedData(itemNames),
+      };
+    });
+  }, [resourceSectionsForRender, additionalItems, resourceItems]);
+
+  const filteredSections = useMemo(() => {
     const s = searchTerm.toUpperCase();
 
-    const filterDynamic = (list: any[]) =>
-      list.filter((d) => d.item.includes(s) || d.people.some((p: any) => p.name.includes(s)));
+    return sectionsWithItems.map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item: any) => item.item.includes(s) || item.people.some((p: any) => p.name.includes(s))
+      ),
+    }));
+  }, [searchTerm, sectionsWithItems]);
 
-    return {
-      comidas: filterDynamic(allItemsForReport.comidas),
-      bebidas: filterDynamic(allItemsForReport.bebidas),
-      velas: filterDynamic(allItemsForReport.velas),
-      fundamento: filterDynamic(allItemsForReport.fundamento),
-    };
-  }, [searchTerm, allItemsForReport]);
+  const reportSections = useMemo(() => {
+    return sectionsWithItems.map((section) => ({
+      title: section.title,
+      items: section.items,
+    }));
+  }, [sectionsWithItems]);
 
   const participantsList = useMemo(() => {
     return [...new Set(votes.map((v) => normalizeName(v.userName)).filter(Boolean))].sort();
@@ -344,7 +461,7 @@ const App = () => {
       costPerPerson,
       totalReceived,
       remainingTarget,
-      allItemsForReport,
+      reportSections,
       payments,
       attendance,
     });
@@ -359,7 +476,7 @@ const App = () => {
     costPerPerson,
     totalReceived,
     remainingTarget,
-    allItemsForReport,
+    reportSections,
     payments,
     attendance,
   ]);
@@ -369,21 +486,91 @@ const App = () => {
     setIsNewItemModalOpen(true);
   };
 
+  const handleAddResourceSection = async (data: { title: string; emoji: string }) => {
+    if (!user || !isAdmin) return;
+
+    const title = normalizeName(data.title);
+
+    const alreadyExists = resourceSectionsForRender.some((section) => {
+      return normalizeName(section.title) === title;
+    });
+
+    if (alreadyExists) {
+      alert(`${title} já existe como tópico.`);
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await addDoc(collection(db, 'resource_sections'), {
+        title,
+        emoji: data.emoji || '📦',
+        active: true,
+        order: resourceSectionsForRender.length + 1,
+        at: Date.now(),
+      });
+
+      setIsNewSectionModalOpen(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteResourceSection = async (section: any) => {
+    if (!user || !isAdmin || !section?.id || !section?.canDelete) return;
+
+    const confirmed = window.confirm(
+      `Deseja remover o tópico "${section.title}"?\n\nOs cards desse tópico também serão ocultados.`
+    );
+
+    if (!confirmed) return;
+
+    setIsSaving(true);
+
+    try {
+      await updateDoc(doc(db, 'resource_sections', section.id), {
+        active: false,
+        deletedAt: Date.now(),
+      });
+
+      const itemsFromSection = resourceItems.filter((item) => {
+        return normalizeName(item.section) === normalizeName(section.title) && item.active !== false;
+      });
+
+      await Promise.all(
+        itemsFromSection.map((item) =>
+          updateDoc(doc(db, 'resource_items', item.id), {
+            active: false,
+            deletedAt: Date.now(),
+          })
+        )
+      );
+
+      if (normalizeName(activeItemTarget) === normalizeName(section.title)) {
+        setActiveItemTarget(null);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleAddResourceItem = async (data: { item: string; section: string; emoji: string }) => {
     if (!user || !isAdmin) return;
 
     const itemName = normalizeName(data.item);
+    const sectionName = normalizeName(data.section);
 
-    const alreadyExists = resourceItems.some((resource) => {
-      return (
-        normalizeName(resource.item) === itemName &&
-        resource.section === data.section &&
-        resource.active !== false
-      );
+    const alreadyExists = sectionsWithItems.some((section) => {
+      return section.items.some((item: any) => normalizeName(item.item) === itemName);
     });
 
     if (alreadyExists) {
-      alert(`${itemName} já existe nessa categoria.`);
+      alert(`${itemName} já existe nos cards.`);
       return;
     }
 
@@ -392,7 +579,7 @@ const App = () => {
     try {
       await addDoc(collection(db, 'resource_items'), {
         item: itemName,
-        section: data.section,
+        section: sectionName,
         emoji: data.emoji || '📦',
         active: true,
         at: Date.now(),
@@ -412,22 +599,25 @@ const App = () => {
     setIsSaving(true);
 
     const upperResp = normalizeName(newItemResp);
-    const upperItem = itemName.toUpperCase();
+    const upperItem = normalizeName(itemName);
+    const upperSection = normalizeName(section);
     const qtyNum = parseInt(newItemQty) || 1;
 
     try {
-      const existingEntry = additionalItems.find((e) => e.item === upperItem && e.resp === upperResp);
+      const existingEntry = additionalItems.find((e) => {
+        return normalizeName(e.item) === upperItem && normalizeName(e.resp) === upperResp;
+      });
 
       if (editingId && !editingId.toString().startsWith('static-')) {
         await updateDoc(doc(db, 'extra_items', editingId), {
           qty: qtyNum,
-          section,
+          section: upperSection,
           at: Date.now(),
         });
       } else if (existingEntry) {
         await updateDoc(doc(db, 'extra_items', existingEntry.id), {
           qty: qtyNum,
-          section,
+          section: upperSection,
           at: Date.now(),
         });
       } else {
@@ -435,7 +625,7 @@ const App = () => {
           item: upperItem,
           resp: upperResp,
           qty: qtyNum,
-          section,
+          section: upperSection,
           at: Date.now(),
         });
       }
@@ -954,99 +1144,48 @@ const App = () => {
               />
             </div>
 
+            {isAdmin && (
+              <div className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setIsNewSectionModalOpen(true)}
+                  className="flex items-center gap-3 bg-white text-[#3e2723] border border-stone-200 rounded-3xl px-6 py-4 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl active:scale-95 transition-all"
+                >
+                  <FolderPlus size={16} />
+                  Novo tópico
+                </button>
+              </div>
+            )}
+
             <div className="space-y-8 pb-8">
-              <Section
-                title="MESA DE COMIDAS"
-                items={filteredItems.comidas}
-                icon={ChefHat}
-                color="text-amber-900"
-                bgColor="bg-amber-100"
-                isResource
-                onAddItem={() => openNewItemModal('MESA DE COMIDAS')}
-                onEdit={startEdit}
-                activeItemTarget={activeItemTarget}
-                setActiveItemTarget={setActiveItemTarget}
-                editingId={editingId}
-                setEditingId={setEditingId}
-                newItemResp={newItemResp}
-                setNewItemResp={setNewItemResp}
-                newItemQty={newItemQty}
-                setNewItemQty={setNewItemQty}
-                handleSave={handleSaveResourceEntry}
-                handleDelete={handleRemoveExtraItem}
-                isSaving={isSaving}
-                isAdmin={isAdmin}
-                hideQty={true}
-              />
-
-              <Section
-                title="CAFÉ E BEBIDAS"
-                icon={Coffee}
-                items={filteredItems.bebidas}
-                color="text-[#3e2723]"
-                bgColor="bg-stone-200"
-                isResource
-                onAddItem={() => openNewItemModal('CAFÉ E BEBIDAS')}
-                onEdit={startEdit}
-                activeItemTarget={activeItemTarget}
-                setActiveItemTarget={setActiveItemTarget}
-                editingId={editingId}
-                setEditingId={setEditingId}
-                newItemResp={newItemResp}
-                setNewItemResp={setNewItemResp}
-                newItemQty={newItemQty}
-                setNewItemQty={setNewItemQty}
-                handleSave={handleSaveResourceEntry}
-                handleDelete={handleRemoveExtraItem}
-                isSaving={isSaving}
-                isAdmin={isAdmin}
-              />
-
-              <Section
-                title="VELAS DE SÉTIMO DIA"
-                icon={Flame}
-                items={filteredItems.velas}
-                color="text-orange-900"
-                bgColor="bg-orange-50"
-                isResource
-                onAddItem={() => openNewItemModal('VELAS DE SÉTIMO DIA')}
-                onEdit={startEdit}
-                activeItemTarget={activeItemTarget}
-                setActiveItemTarget={setActiveItemTarget}
-                editingId={editingId}
-                setEditingId={setEditingId}
-                newItemResp={newItemResp}
-                setNewItemResp={setNewItemResp}
-                newItemQty={newItemQty}
-                setNewItemQty={setNewItemQty}
-                handleSave={handleSaveResourceEntry}
-                handleDelete={handleRemoveExtraItem}
-                isSaving={isSaving}
-                isAdmin={isAdmin}
-              />
-
-              <Section
-                title="FUNDAMENTOS DE EXU ONAN E CATIÇO"
-                items={filteredItems.fundamento}
-                icon={Sparkles}
-                color="text-red-900"
-                bgColor="bg-red-50"
-                isResource
-                onAddItem={() => openNewItemModal('FUNDAMENTOS DE EXU ONAN E CATIÇO')}
-                onEdit={startEdit}
-                activeItemTarget={activeItemTarget}
-                setActiveItemTarget={setActiveItemTarget}
-                editingId={editingId}
-                setEditingId={setEditingId}
-                newItemResp={newItemResp}
-                setNewItemResp={setNewItemResp}
-                newItemQty={newItemQty}
-                setNewItemQty={setNewItemQty}
-                handleSave={handleSaveResourceEntry}
-                handleDelete={handleRemoveExtraItem}
-                isSaving={isSaving}
-                isAdmin={isAdmin}
-              />
+              {filteredSections.map((section) => (
+                <Section
+                  key={section.title}
+                  title={section.title}
+                  items={section.items}
+                  icon={section.icon}
+                  color={section.color}
+                  bgColor={section.bgColor}
+                  isResource
+                  onAddItem={() => openNewItemModal(section.title)}
+                  onDeleteSection={() => handleDeleteResourceSection(section)}
+                  canDeleteSection={section.canDelete}
+                  onEdit={startEdit}
+                  activeItemTarget={activeItemTarget}
+                  setActiveItemTarget={setActiveItemTarget}
+                  editingId={editingId}
+                  setEditingId={setEditingId}
+                  newItemResp={newItemResp}
+                  setNewItemResp={setNewItemResp}
+                  newItemQty={newItemQty}
+                  setNewItemQty={setNewItemQty}
+                  handleSave={handleSaveResourceEntry}
+                  handleDelete={handleRemoveExtraItem}
+                  isSaving={isSaving}
+                  isAdmin={isAdmin}
+                  hideQty={section.hideQty}
+                />
+              ))}
             </div>
           </div>
         )}
@@ -1404,12 +1543,23 @@ const App = () => {
         </div>
       )}
 
+      <AddResourceSectionModal
+        isOpen={isNewSectionModalOpen}
+        onClose={() => setIsNewSectionModalOpen(false)}
+        onSave={handleAddResourceSection}
+        isSaving={isSaving}
+      />
+
       <AddResourceItemModal
         isOpen={isNewItemModalOpen}
         onClose={() => setIsNewItemModalOpen(false)}
         onSave={handleAddResourceItem}
         isSaving={isSaving}
         defaultSection={newItemDefaultSection}
+        sectionOptions={resourceSectionsForRender.map((section) => ({
+          title: section.title,
+          emoji: section.emoji,
+        }))}
       />
 
       <ReportModal
