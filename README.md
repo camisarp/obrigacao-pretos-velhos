@@ -1,73 +1,108 @@
-# React + TypeScript + Vite
+# ☕ Obrigação Pretos Velhos
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard desenvolvido para auxiliar na organização da **Obrigação de Pretos Velhos 2026**, reunindo em um só lugar o controle de presença, materiais, contribuições financeiras, comparecimento e relatório final em PDF.
 
-Currently, two official plugins are available:
+O projeto foi criado com foco em uso interno, praticidade no celular e facilidade para acompanhar a organização da obrigação de forma clara, visual e colaborativa.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🔗 Projeto online
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Acesse o projeto publicado na Vercel:
 
-## Expanding the ESLint configuration
+[Obrigação Pretos Velhos](COLE_AQUI_O_LINK_DA_VERCEL)
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## 📌 Sobre o projeto
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+O sistema permite organizar as informações principais da obrigação, como:
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- quem confirmou presença;
+- quais datas foram votadas;
+- qual data foi definida como oficial;
+- quem está dentro da cota financeira;
+- quem está fora da cota, mas será considerado na presença;
+- quanto cada pessoa pagou;
+- quais pagamentos ainda estão pendentes;
+- quem compareceu ou não compareceu;
+- quais materiais serão levados;
+- geração de relatório final com logo e opção de salvar em PDF.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## ✨ Funcionalidades
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+- Confirmação de presença por data;
+- Bloqueio de confirmação duplicada na mesma data;
+- Definição de data oficial pelo modo administrador;
+- Controle de materiais e responsáveis;
+- Cálculo automático da cota por pessoa;
+- Separação entre pessoas na cota e pessoas sem cota;
+- Controle financeiro individual;
+- Registro de comprovantes;
+- Controle de comparecimento com status:
+  - Foi;
+  - Não foi;
+  - Limpar;
+- Relatório final com:
+  - logo do Ilè;
+  - resumo geral;
+  - resumo financeiro;
+  - resumo de comparecimento;
+  - status dos pagamentos;
+  - detalhamento por pessoa;
+  - pessoas sem cota;
+  - materiais por categoria;
+  - observações finais;
+- Geração de relatório para salvar como PDF;
+- Layout responsivo para celular e desktop;
+- Botão flutuante para voltar ao topo da página.
+
+---
+
+## 🛠️ Tecnologias utilizadas
+
+- React;
+- TypeScript;
+- Vite;
+- Firebase Authentication;
+- Firestore Database;
+- Tailwind CSS;
+- Lucide React;
+- Vercel.
+
+---
+
+## 📸 Prints do projeto
+
+> Adicione os prints na pasta `docs/images` e atualize os caminhos abaixo se necessário.
+
+### Dashboard
+
+![Dashboard](./docs/images/dashboard.png)
+
+### Financeiro
+
+![Financeiro](./docs/images/financeiro.png)
+
+### Relatório
+
+![Relatório](./docs/images/relatorio.png)
+
+### Versão mobile
+
+![Mobile](./docs/images/mobile.png)
+
+---
+
+## 🚀 Como rodar o projeto localmente
+
+### 1. Clone o repositório
+
+```bash
+git clone link-do-repositorio
+cd nome-do-projeto
+npm install
+npm run dev
+git clone COLE_AQUI_O_LINK_DO_REPOSITORIO
