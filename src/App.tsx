@@ -190,49 +190,6 @@ const App = () => {
   }, [user]);
 
   const generateCombinedData = (nameList: string[]) => {
-    const defaultData: Record<string, any> = {
-      FEIJOADA: [
-        { resp: 'KARLA', qty: 1 },
-        { resp: 'THIAGO', qty: 1 },
-      ],
-      VATAPÁ: [
-        { resp: 'MARIANA', qty: 1 },
-        { resp: 'CAMILA', qty: 1 },
-      ],
-      CANJICA: { resp: 'CAIO', qty: 1 },
-      PAMONHA: { resp: 'POLLY', qty: 1 },
-      'MILHO VERDE': { resp: 'FERNANDO', qty: 1 },
-      'BOLO DE TRIGO': { resp: 'BRUNA', qty: 1 },
-      'BOLO DE MACAXEIRA': { resp: 'BIA', qty: 1 },
-      MUNGUZÁ: { resp: 'MAYARA', qty: 1 },
-      TAPIOCA: { resp: 'BRUNA', qty: 1 },
-      COCADA: { resp: 'ANDRESSA', qty: 1 },
-      CAFÉ: { resp: 'BRUNA', qty: 1, emoji: '☕' },
-      VINHO: { resp: 'MARIANA', qty: 1, emoji: '🍷' },
-      'VINAGRE DE ÁLCOOL': { resp: 'BIA', qty: 1, emoji: '🍶' },
-      REFRIGERANTE: [
-        { resp: 'BRUNA', qty: 1 },
-        { resp: 'SHAYLANE', qty: 1 },
-      ],
-      CERVEJA: { resp: 'OPCIONAL', qty: 0, emoji: '🍺' },
-      'VELAS DE SÉTIMO DIA': [
-        'MARIANA',
-        'BRUNA',
-        'FERNANDO',
-        'CAIO',
-        'ANDRESSA',
-        'MAYARA',
-      ].map((n) => ({
-        resp: n,
-        qty: 1,
-      })),
-      LARANJAS: { resp: 'RAFAEL', qty: 9, emoji: '🍊' },
-      'PALMA BANANA': { resp: 'RAFAEL', qty: 1, emoji: '🍌' },
-      ABACAXIS: { resp: 'RAFAEL', qty: 2, emoji: '🍍' },
-      FARINHAS: { resp: 'SHAYLANE', qty: 2, emoji: '🌾' },
-      AZEITE: { resp: 'SHAYLANE', qty: 1, emoji: '🏺' },
-    };
-
     const emojiMap: Record<string, string> = {
       FEIJOADA: '🥘',
       VATAPÁ: '🍲',
@@ -244,54 +201,44 @@ const App = () => {
       MUNGUZÁ: '🥣',
       TAPIOCA: '🥟',
       COCADA: '🥥',
+      CAFÉ: '☕',
+      VINHO: '🍷',
+      'VINAGRE DE ÁLCOOL': '🍶',
+      REFRIGERANTE: '🥤',
+      CERVEJA: '🍺',
+      'VELAS DE SÉTIMO DIA': '🕯️',
+      LARANJAS: '🍊',
+      'PALMA BANANA': '🍌',
+      ABACAXIS: '🍍',
+      FARINHAS: '🌾',
+      AZEITE: '🏺',
     };
 
     return nameList.map((name) => {
       const responsiblesMap: Record<string, any> = {};
-      const def = defaultData[name];
-      let itemEmoji = emojiMap[name] || '📦';
-
-      if (name === 'REFRIGERANTE') itemEmoji = '🥤';
-      if (name === 'VELAS DE SÉTIMO DIA') itemEmoji = '🕯️';
-      if (def && !Array.isArray(def) && def.emoji) itemEmoji = def.emoji;
-
-      if (Array.isArray(def)) {
-        def.forEach((d) => {
-          responsiblesMap[d.resp] = {
-            name: d.resp,
-            qty: d.qty,
-            id: `static-${d.resp}`,
-            item: name,
-          };
-        });
-      } else if (def) {
-        responsiblesMap[def.resp] = {
-          name: def.resp,
-          qty: def.qty,
-          id: `static-${def.resp}`,
-          item: name,
-        };
-      }
 
       additionalItems
-        .filter((e) => e.item === name)
-        .forEach((e) => {
-          responsiblesMap[e.resp] = {
-            name: e.resp,
-            qty: e.qty,
-            id: e.id,
+        .filter((entry) => {
+          return entry.item === name && Number(entry.qty) > 0 && entry.section !== 'removed';
+        })
+        .sort((a, b) => (Number(a.at) || 0) - (Number(b.at) || 0))
+        .forEach((entry) => {
+          responsiblesMap[entry.resp] = {
+            name: entry.resp,
+            qty: Number(entry.qty) || 1,
+            id: entry.id,
             item: name,
           };
         });
 
-      const people = Object.values(responsiblesMap)
-        .filter((p: any) => p.qty > 0 || (p.name === 'OPCIONAL' && p.qty >= 0))
-        .sort((a: any, b: any) => a.name.localeCompare(b.name));
+      const people = Object.values(responsiblesMap).sort((a: any, b: any) =>
+        a.name.localeCompare(b.name)
+      );
 
       return {
         item: name,
-        total: people.reduce((a: number, b: any) => a + Math.max(0, b.qty), 0),
-        emoji: itemEmoji,
+        total: people.reduce((acc: number, person: any) => acc + Math.max(0, person.qty), 0),
+        emoji: emojiMap[name] || '📦',
         people,
       };
     });
@@ -436,27 +383,24 @@ const App = () => {
     }
   };
 
-  const handleRemoveExtraItem = async (idToDelete: string, respName: string, itemName: string) => {
+  const handleRemoveExtraItem = async (
+    idToDelete: string,
+    _respName: string,
+    _itemName: string
+  ) => {
+    if (!idToDelete) return;
+
     setIsSaving(true);
 
     try {
-      const upperResp = normalizeName(respName);
-      const upperItem = itemName.toUpperCase();
-
-      if (idToDelete && !idToDelete.toString().startsWith('static-')) {
+      if (!idToDelete.toString().startsWith('static-')) {
         await deleteDoc(doc(db, 'extra_items', idToDelete));
       }
 
-      await addDoc(collection(db, 'extra_items'), {
-        item: upperItem,
-        resp: upperResp,
-        qty: -1,
-        section: 'removed',
-        at: Date.now(),
-      });
-
       setActiveItemTarget(null);
       setEditingId(null);
+      setNewItemResp('');
+      setNewItemQty('');
     } catch (e) {
       console.error(e);
     } finally {
