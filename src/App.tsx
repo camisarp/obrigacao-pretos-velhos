@@ -434,10 +434,15 @@ const App = () => {
     { id: 'domingo', label: 'DOMINGO, 17/05', color: 'bg-[#1a1a1a]' },
   ];
 
-  const reportText = useMemo(() => {
-    const generatedAt = new Date().toLocaleString('pt-BR');
-    const officialDate = dateOptions.find((d) => d.id === settings.officialDateId)?.label || 'NÃO DEFINIDA';
+  const officialDate = useMemo(() => {
+    return dateOptions.find((d) => d.id === settings.officialDateId)?.label || 'NÃO DEFINIDA';
+  }, [settings.officialDateId]);
 
+  const generatedAt = useMemo(() => {
+    return new Date().toLocaleString('pt-BR');
+  }, [isReportOpen]);
+
+  const reportText = useMemo(() => {
     const getStatus = (name) => attendance[name]?.status || 'pending';
     const statusLabel = (status) => {
       if (status === 'attended') return 'FOI';
@@ -486,18 +491,6 @@ const App = () => {
     };
 
     let report = ``;
-    report += `══════════════════════════════════════════════════\n`;
-    report += `          RELATÓRIO FINAL DA OBRIGAÇÃO\n`;
-    report += `              PRETOS VELHOS 2026\n`;
-    report += `══════════════════════════════════════════════════\n\n`;
- 
-    report += `Casa: Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú\n`;
-    report += `Bàbálórìṣà: Geraldo Nunes da Rocha\n\n`;
-    report += `Data oficial: ${officialDate}\n\n`;
-    report += `Gerado em: ${generatedAt}\n\n`;
-    
-    report += `Adorei as Almas. 🍃\n`;
-    report += `--------------------------------------------------\n\n`;
 
     report += `1. RESUMO GERAL
 
@@ -543,8 +536,6 @@ const App = () => {
     report += writeList('PESSOAS QUE NÃO FORAM:', missedNames, 'Ninguém marcado como não foi.');
     report += writeList('PESSOAS AINDA NÃO MARCADAS:', pendingAttendanceNames, 'Todos foram marcados.');
 
-    report += `--------------------------------------------------
-`;
     report += `4. STATUS DOS PAGAMENTOS
 
 `;
@@ -582,8 +573,6 @@ const App = () => {
 `;
     }
 
-    report += `--------------------------------------------------
-`;
     report += `5. DETALHAMENTO DAS PESSOAS NA COTA
 
 `;
@@ -623,8 +612,6 @@ const App = () => {
 `;
     });
 
-    report += `--------------------------------------------------
-`;
     report += `6. PESSOAS SEM COTA
 
 `;
@@ -645,8 +632,6 @@ const App = () => {
       });
     }
 
-    report += `--------------------------------------------------
-`;
     report += `7. RESUMO DE MATERIAIS POR CATEGORIA
 
 `;
@@ -670,8 +655,6 @@ const App = () => {
 `;
     });
 
-    report += `--------------------------------------------------
-`;
     report += `8. OBSERVAÇÕES FINAIS
 
 `;
@@ -687,26 +670,51 @@ const App = () => {
 `;
 
     return report;
-  }, [settings.officialDateId, totalParticipants, totalQuotaParticipants, participantsList, quotaParticipantsList, presenceOnlyList, totalCost, costPerPerson, totalReceived, remainingTarget, allItemsForReport, payments, attendance]);
+  }, [officialDate, totalParticipants, totalQuotaParticipants, participantsList, quotaParticipantsList, presenceOnlyList, totalCost, costPerPerson, totalReceived, remainingTarget, allItemsForReport, payments, attendance]);
 
-  const handleGeneratePDF = () => {
+  const handleGeneratePDF = async () => {
     const escapedReport = reportText
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
+
+    let logoUrl = '';
+
+    try {
+      const logoResponse = await fetch('/logo-ile.png');
+      const logoBlob = await logoResponse.blob();
+
+      logoUrl = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+
+        reader.onloadend = () => {
+          resolve(reader.result);
+        };
+
+        reader.onerror = reject;
+        reader.readAsDataURL(logoBlob);
+      });
+    } catch (error) {
+      console.error('Erro ao carregar a logo para o relatório:', error);
+    }
+
+    const logoHtml = logoUrl
+      ? `<img src="${logoUrl}" alt="Logo do Ilè" class="logo" />`
+      : '';
 
     const html = `<!doctype html>
       <html lang="pt-BR">
         <head>
           <meta charset="UTF-8" />
           <title>Relatório - Obrigação Pretos Velhos</title>
+
           <style>
             body {
               margin: 0;
               padding: 40px;
               background: #f7f3f0;
               color: #2d1b18;
-              font-family: 'Courier New', Courier, monospace;
+              font-family: Arial, sans-serif;
             }
 
             .page {
@@ -718,12 +726,60 @@ const App = () => {
               box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
             }
 
+            .header {
+              text-align: center;
+              padding-bottom: 24px;
+              margin-bottom: 28px;
+              border-bottom: 1px solid #d6d3d1;
+            }
+
+            .logo {
+              width: 130px;
+              height: auto;
+              margin: 0 auto 18px;
+              display: block;
+            }
+
+            .title {
+              font-size: 20px;
+              font-weight: 900;
+              text-transform: uppercase;
+              margin: 0;
+              color: #1c1917;
+              letter-spacing: 0.04em;
+            }
+
+            .subtitle {
+              font-size: 16px;
+              font-weight: 900;
+              text-transform: uppercase;
+              margin: 6px 0 18px;
+              color: #292524;
+              letter-spacing: 0.04em;
+            }
+
+            .meta {
+              font-size: 13px;
+              line-height: 1.6;
+              color: #44403c;
+              margin: 0;
+            }
+
+            .blessing {
+              margin-top: 14px;
+              font-size: 13px;
+              font-weight: 700;
+              color: #44403c;
+            }
+
             pre {
               white-space: pre-wrap;
               word-wrap: break-word;
-              font-size: 13px;
+              font-family: "Courier New", Courier, monospace;
+              font-size: 12px;
               line-height: 1.6;
               margin: 0;
+              color: #2d1b18;
             }
 
             .print-button {
@@ -764,9 +820,25 @@ const App = () => {
             }
           </style>
         </head>
+
         <body>
           <button class="print-button" onclick="window.print()">Salvar como PDF</button>
+
           <div class="page">
+            <div class="header">
+              ${logoHtml}
+
+              <h1 class="title">Relatório Final da Obrigação</h1>
+              <p class="subtitle">Pretos Velhos 2026</p>
+
+              <p class="meta"><strong>Casa:</strong> Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú</p>
+              <p class="meta"><strong>Bàbálòrìṣà:</strong> Geraldo Nunes da Rocha</p>
+              <p class="meta"><strong>Data oficial:</strong> ${officialDate}</p>
+              <p class="meta"><strong>Gerado em:</strong> ${generatedAt}</p>
+
+              <p class="blessing">Adorei as Almas. 🍃</p>
+            </div>
+
             <pre>${escapedReport}</pre>
           </div>
         </body>
@@ -1511,8 +1583,47 @@ const App = () => {
                 </button>
               </div>
             </div>
-            <div id="report-content" className="flex-1 overflow-y-auto p-8 font-mono text-[11px] text-stone-800 leading-relaxed whitespace-pre-wrap select-text bg-white text-left">
-              {reportText}
+            <div id="report-content" className="flex-1 overflow-y-auto p-6 sm:p-8 bg-white text-left">
+              <div className="max-w-2xl mx-auto">
+                <div className="text-center pb-6 mb-6 border-b border-stone-200">
+                  <img
+                    src="/logo-ile.png"
+                    alt="Logo do Ilè"
+                    className="w-28 sm:w-32 h-auto mx-auto mb-4"
+                  />
+
+                  <h2 className="font-black text-base sm:text-lg uppercase tracking-wide text-stone-900">
+                    Relatório Final da Obrigação
+                  </h2>
+
+                  <p className="font-black text-sm sm:text-base uppercase tracking-wide text-stone-800 mt-1">
+                    Pretos Velhos 2026
+                  </p>
+
+                  <div className="mt-5 space-y-1 text-[11px] sm:text-sm text-stone-700 leading-relaxed">
+                    <p>
+                      <strong>Casa:</strong> Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú
+                    </p>
+                    <p>
+                      <strong>Bàbálòrìṣà:</strong> Geraldo Nunes da Rocha
+                    </p>
+                    <p>
+                      <strong>Data oficial:</strong> {officialDate}
+                    </p>
+                    <p>
+                      <strong>Gerado em:</strong> {generatedAt}
+                    </p>
+                  </div>
+
+                  <p className="text-sm font-semibold text-stone-700 mt-4">
+                    Adorei as Almas. 🍃
+                  </p>
+                </div>
+
+                <pre className="font-mono text-[11px] sm:text-[12px] text-stone-800 leading-relaxed whitespace-pre-wrap break-words m-0">
+                  {reportText}
+                </pre>
+              </div>
             </div>
             <div className="p-4 border-t border-stone-50 bg-stone-50/50 flex flex-col items-center">
               <div className="w-32 h-[1px] bg-stone-300 mb-2" />
