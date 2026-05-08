@@ -413,7 +413,7 @@ const App = () => {
 
   const reportText = useMemo(() => {
     let report = `Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú\n`;
-    report += `Bàbálórìṣà Geraldo Nunes da Rocha\n`;
+    report += `Bàbálórìṣà Geraldo Nunes da Rocha\n\n`;
     report += `RELATÓRIO FINAL - OBRIGAÇÃO PRETOS VELHOS 2025\n`;
     report += `--------------------------------------------------\n\n`;
     report += `👥 PRESENÇA TOTAL: ${totalParticipants} PESSOAS\n`;
@@ -482,7 +482,7 @@ const App = () => {
         <head>
           <title>Relatório - Obrigação Pretos Velhos</title>
           <style>
-            body { font-family: 'Courier New', Courier, monospace; padding: 40px; line-height: 1.5; font-size: 13px; color: #333; white-space: pre-wrap; }
+            body { font-family: 'Courier New', Courier, monospace; padding: 40px; line-height: 1.5; font-size: 13px; color: #333; white-space: pre-wrap; text-align: left; }
             @media print { @page { margin: 15mm; } }
           </style>
         </head>
@@ -636,7 +636,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
         <Loader2 className="animate-spin text-amber-600" size={48} />
-        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando à Zeladoria...</p>
+        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando ao Ilè...</p>
       </div>
     );
   }
@@ -1140,7 +1140,7 @@ const App = () => {
                 </button>
               </div>
             </div>
-            <div id="report-content" className="flex-1 overflow-y-auto p-8 font-mono text-[11px] text-stone-800 leading-relaxed whitespace-pre-wrap select-text bg-white">
+            <div id="report-content" className="flex-1 overflow-y-auto p-8 font-mono text-[11px] text-stone-800 leading-relaxed whitespace-pre-wrap select-text bg-white text-left">
               {reportText}
             </div>
             <div className="p-4 border-t border-stone-50 bg-stone-50/50 flex flex-col items-center">
@@ -1183,14 +1183,14 @@ const Section = ({
 }) => (
   items.length > 0 && (
     <div className="mb-8 w-full">
-      <div className={`flex items-center gap-3 mb-6 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90`}>
-        <Icon size={18} />
-        <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">{title}</h2>
+      <div className={`flex items-center gap-3 mb-6 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90 text-left`}>
+        <Icon size={18} className="shrink-0" />
+        <p className="text-[10px] font-black uppercase tracking-widest leading-none text-current">{title}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {items.map((i, idx) => (
-          <div key={idx} className="p-4 rounded-[2rem] bg-white border border-stone-200 shadow-xl hover:shadow-2xl group hover:border-amber-200 transition-all flex flex-col justify-between">
+          <div key={idx} className="p-4 rounded-[2rem] bg-white border border-stone-200 shadow-xl hover:shadow-2xl group hover:border-amber-200 transition-all flex flex-col justify-between text-left">
             <div>
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
@@ -1212,7 +1212,7 @@ const Section = ({
               </div>
 
               <div className="pt-2 border-t border-stone-50/80">
-                <p className="text-[7px] font-black uppercase text-stone-300 tracking-widest mb-2 leading-none">RESPONSÁVEL(S)</p>
+                <p className="text-[7px] font-black uppercase text-stone-300 tracking-widest mb-2 leading-none text-left w-full">RESPONSÁVEL(S)</p>
                 <div className="flex flex-wrap gap-1.5">
                   {i.people.map((p, pIdx) => (
                     <div key={pIdx} className="bg-stone-50 border border-stone-100 px-2.5 py-1.5 rounded-xl flex items-center gap-2 shadow-sm border-b-2">
