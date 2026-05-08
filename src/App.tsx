@@ -59,6 +59,29 @@ const normalizeName = (value) => {
     .toUpperCase();
 };
 
+
+const formatReportHtml = (text) => {
+  return String(text || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/^1\. RESUMO GERAL$/gm, '<strong>1. RESUMO GERAL</strong>')
+    .replace(/^2\. RESUMO FINANCEIRO$/gm, '<strong>2. RESUMO FINANCEIRO</strong>')
+    .replace(/^3\. RESUMO DE COMPARECIMENTO$/gm, '<strong>3. RESUMO DE COMPARECIMENTO</strong>')
+    .replace(/^4\. STATUS DOS PAGAMENTOS$/gm, '<strong>4. STATUS DOS PAGAMENTOS</strong>')
+    .replace(/^5\. DETALHAMENTO DAS PESSOAS NA COTA$/gm, '<strong>5. DETALHAMENTO DAS PESSOAS NA COTA</strong>')
+    .replace(/^6\. PESSOAS SEM COTA$/gm, '<strong>6. PESSOAS SEM COTA</strong>')
+    .replace(/^7\. RESUMO DE MATERIAIS POR CATEGORIA$/gm, '<strong>7. RESUMO DE MATERIAIS POR CATEGORIA</strong>')
+    .replace(/^8\. OBSERVAÇÕES FINAIS$/gm, '<strong>8. OBSERVAÇÕES FINAIS</strong>')
+    .replace(/^PESSOAS QUE FORAM:$/gm, '<strong>PESSOAS QUE FORAM:</strong>')
+    .replace(/^PESSOAS QUE NÃO FORAM:$/gm, '<strong>PESSOAS QUE NÃO FORAM:</strong>')
+    .replace(/^PESSOAS AINDA NÃO MARCADAS:$/gm, '<strong>PESSOAS AINDA NÃO MARCADAS:</strong>')
+    .replace(/^PESSOAS QUITADAS:$/gm, '<strong>PESSOAS QUITADAS:</strong>')
+    .replace(/^PAGAMENTOS PARCIAIS:$/gm, '<strong>PAGAMENTOS PARCIAIS:</strong>')
+    .replace(/^PESSOAS PENDENTES:$/gm, '<strong>PESSOAS PENDENTES:</strong>')
+    .replace(/^\[(MESA DE COMIDAS|CAFÉ E BEBIDAS|VELAS DE SÉTIMO DIA|FUNDAMENTOS DE EXU ONAN E CATIÇO)\]$/gm, '<strong>[$1]</strong>');
+};
+
 // --- COMPONENTES AUXILIARES ---
 
 const ItemIcon = ({ emoji, color = 'bg-stone-100' }) => (
@@ -672,12 +695,11 @@ const App = () => {
     return report;
   }, [officialDate, totalParticipants, totalQuotaParticipants, participantsList, quotaParticipantsList, presenceOnlyList, totalCost, costPerPerson, totalReceived, remainingTarget, allItemsForReport, payments, attendance]);
 
-  const handleGeneratePDF = async () => {
-    const escapedReport = reportText
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
+  const formattedReportHtml = useMemo(() => {
+    return formatReportHtml(reportText);
+  }, [reportText]);
 
+  const handleGeneratePDF = async () => {
     let logoUrl = '';
 
     try {
@@ -772,7 +794,7 @@ const App = () => {
               color: #44403c;
             }
 
-            pre {
+            .report-body {
               white-space: pre-wrap;
               word-wrap: break-word;
               font-family: "Courier New", Courier, monospace;
@@ -780,6 +802,11 @@ const App = () => {
               line-height: 1.6;
               margin: 0;
               color: #2d1b18;
+            }
+
+            .report-body strong {
+              font-weight: 900;
+              color: #1c1917;
             }
 
             .print-button {
@@ -839,7 +866,7 @@ const App = () => {
               <p class="blessing">Adorei as Almas. 🍃</p>
             </div>
 
-            <pre>${escapedReport}</pre>
+            <div class="report-body">${formattedReportHtml}</div>
           </div>
         </body>
       </html>`;
@@ -1620,9 +1647,10 @@ const App = () => {
                   </p>
                 </div>
 
-                <pre className="font-mono text-[11px] sm:text-[12px] text-stone-800 leading-relaxed whitespace-pre-wrap break-words m-0">
-                  {reportText}
-                </pre>
+                <div
+                  className="font-mono text-[11px] sm:text-[12px] text-stone-800 leading-relaxed whitespace-pre-wrap break-words m-0"
+                  dangerouslySetInnerHTML={{ __html: formattedReportHtml }}
+                />
               </div>
             </div>
             <div className="p-4 border-t border-stone-50 bg-stone-50/50 flex flex-col items-center">
