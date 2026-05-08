@@ -34,13 +34,13 @@ import {
   ExternalLink,
   Lock,
   Unlock,
-  X,
   FileDown,
 } from 'lucide-react';
 
 import AttendanceControl from './components/AttendanceControl';
 import BackToTopButton from './components/BackToTopButton';
 import CurrencyInput from './components/CurrencyInput';
+import ReportModal from './components/ReportModal';
 import Section from './components/Section';
 
 import { auth, db } from './config/firebase';
@@ -61,34 +61,6 @@ const ItemIcon = ({ emoji, color = 'bg-stone-100' }: { emoji: string; color?: st
   </div>
 );
 
-const formatReportHtml = (text: string) => {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-
-    .replace(/^1\. RESUMO GERAL$/gm, '<strong>1. RESUMO GERAL</strong>')
-    .replace(/^2\. RESUMO FINANCEIRO$/gm, '<strong>2. RESUMO FINANCEIRO</strong>')
-    .replace(/^3\. RESUMO DE COMPARECIMENTO$/gm, '<strong>3. RESUMO DE COMPARECIMENTO</strong>')
-    .replace(/^4\. STATUS DOS PAGAMENTOS$/gm, '<strong>4. STATUS DOS PAGAMENTOS</strong>')
-    .replace(/^5\. DETALHAMENTO DAS PESSOAS NA COTA$/gm, '<strong>5. DETALHAMENTO DAS PESSOAS NA COTA</strong>')
-    .replace(/^6\. PESSOAS SEM COTA$/gm, '<strong>6. PESSOAS SEM COTA</strong>')
-    .replace(/^7\. RESUMO DE MATERIAIS POR CATEGORIA$/gm, '<strong>7. RESUMO DE MATERIAIS POR CATEGORIA</strong>')
-    .replace(/^8\. OBSERVAÇÕES FINAIS$/gm, '<strong>8. OBSERVAÇÕES FINAIS</strong>')
-
-    .replace(/^PESSOAS QUE FORAM:$/gm, '<strong>PESSOAS QUE FORAM:</strong>')
-    .replace(/^PESSOAS QUE NÃO FORAM:$/gm, '<strong>PESSOAS QUE NÃO FORAM:</strong>')
-    .replace(/^PESSOAS AINDA NÃO MARCADAS:$/gm, '<strong>PESSOAS AINDA NÃO MARCADAS:</strong>')
-    .replace(/^PESSOAS QUITADAS:$/gm, '<strong>PESSOAS QUITADAS:</strong>')
-    .replace(/^PAGAMENTOS PARCIAIS:$/gm, '<strong>PAGAMENTOS PARCIAIS:</strong>')
-    .replace(/^PESSOAS PENDENTES:$/gm, '<strong>PESSOAS PENDENTES:</strong>')
-
-    .replace(/^\[MESA DE COMIDAS\]$/gm, '<strong>[MESA DE COMIDAS]</strong>')
-    .replace(/^\[CAFÉ E BEBIDAS\]$/gm, '<strong>[CAFÉ E BEBIDAS]</strong>')
-    .replace(/^\[VELAS DE SÉTIMO DIA\]$/gm, '<strong>[VELAS DE SÉTIMO DIA]</strong>')
-    .replace(/^\[FUNDAMENTOS DE EXU ONAN E CATIÇO\]$/gm, '<strong>[FUNDAMENTOS DE EXU ONAN E CATIÇO]</strong>');
-};
-
 const App = () => {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -96,7 +68,9 @@ const App = () => {
 
   const [votes, setVotes] = useState<any[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
-  const [settings, setSettings] = useState<{ officialDateId?: string | null }>({ officialDateId: null });
+  const [settings, setSettings] = useState<{ officialDateId?: string | null }>({
+    officialDateId: null,
+  });
   const [additionalItems, setAdditionalItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<Record<string, any>>({});
   const [attendance, setAttendance] = useState<Record<string, any>>({});
@@ -172,14 +146,16 @@ const App = () => {
       const p: Record<string, number> = {};
 
       snap.docs.forEach((d) => {
-        p[d.id] = d.data().value;
+        p[d.id] = Number(d.data().value) || 0;
       });
 
       setPrices(p);
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
-      if (snap.exists()) setSettings(snap.data());
+      if (snap.exists()) {
+        setSettings(snap.data());
+      }
     });
 
     const unsubAddItems = onSnapshot(collection(db, 'extra_items'), (snap) => {
@@ -242,10 +218,12 @@ const App = () => {
         { resp: 'SHAYLANE', qty: 1 },
       ],
       CERVEJA: { resp: 'OPCIONAL', qty: 0, emoji: '🍺' },
-      'VELAS DE SÉTIMO DIA': ['MARIANA', 'BRUNA', 'FERNANDO', 'CAIO', 'ANDRESSA', 'MAYARA'].map((n) => ({
-        resp: n,
-        qty: 1,
-      })),
+      'VELAS DE SÉTIMO DIA': ['MARIANA', 'BRUNA', 'FERNANDO', 'CAIO', 'ANDRESSA', 'MAYARA'].map(
+        (n) => ({
+          resp: n,
+          qty: 1,
+        })
+      ),
       LARANJAS: { resp: 'RAFAEL', qty: 9, emoji: '🍊' },
       'PALMA BANANA': { resp: 'RAFAEL', qty: 1, emoji: '🍌' },
       ABACAXIS: { resp: 'RAFAEL', qty: 2, emoji: '🍍' },
@@ -571,195 +549,6 @@ const App = () => {
     attendance,
   ]);
 
-  const formattedReportHtml = useMemo(() => {
-    return formatReportHtml(reportText);
-  }, [reportText]);
-
-  const handleGeneratePDF = async () => {
-    let logoUrl = '';
-
-    try {
-      const logoResponse = await fetch('/logo-ile.png');
-      const logoBlob = await logoResponse.blob();
-
-      logoUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-
-        reader.onloadend = () => {
-          resolve(String(reader.result));
-        };
-
-        reader.onerror = reject;
-        reader.readAsDataURL(logoBlob);
-      });
-    } catch (error) {
-      console.error('Erro ao carregar a logo para o relatório:', error);
-    }
-
-    const logoHtml = logoUrl ? `<img src="${logoUrl}" alt="Logo do Ilè" class="logo" />` : '';
-
-    const html = `<!doctype html>
-      <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8" />
-          <title>Relatório - Obrigação Pretos Velhos</title>
-
-          <style>
-            body {
-              margin: 0;
-              padding: 40px;
-              background: #f7f3f0;
-              color: #2d1b18;
-              font-family: Arial, sans-serif;
-            }
-
-            .page {
-              max-width: 800px;
-              margin: 0 auto;
-              background: #ffffff;
-              padding: 40px;
-              border-radius: 24px;
-              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            }
-
-            .header {
-              text-align: center;
-              padding-bottom: 24px;
-              margin-bottom: 28px;
-              border-bottom: 1px solid #d6d3d1;
-            }
-
-            .logo {
-              width: 130px;
-              height: auto;
-              margin: 0 auto 18px;
-              display: block;
-            }
-
-            .title {
-              font-size: 20px;
-              font-weight: 900;
-              text-transform: uppercase;
-              margin: 0;
-              color: #1c1917;
-              letter-spacing: 0.04em;
-            }
-
-            .subtitle {
-              font-size: 16px;
-              font-weight: 900;
-              text-transform: uppercase;
-              margin: 6px 0 18px;
-              color: #292524;
-              letter-spacing: 0.04em;
-            }
-
-            .meta {
-              font-size: 13px;
-              line-height: 1.6;
-              color: #44403c;
-              margin: 0;
-            }
-
-            .blessing {
-              margin-top: 14px;
-              font-size: 13px;
-              font-weight: 700;
-              color: #44403c;
-            }
-
-            .report-body {
-              white-space: pre-wrap;
-              word-wrap: break-word;
-              font-family: "Courier New", Courier, monospace;
-              font-size: 12px;
-              line-height: 1.6;
-              margin: 0;
-              color: #2d1b18;
-            }
-
-            .report-body strong {
-              font-weight: 900;
-              color: #1c1917;
-            }
-
-            .print-button {
-              position: fixed;
-              top: 16px;
-              right: 16px;
-              border: 0;
-              border-radius: 999px;
-              padding: 12px 18px;
-              background: #d97706;
-              color: white;
-              font-weight: 900;
-              cursor: pointer;
-              box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
-            }
-
-            @media print {
-              body {
-                background: #ffffff;
-                padding: 0;
-              }
-
-              .page {
-                max-width: none;
-                margin: 0;
-                padding: 0;
-                box-shadow: none;
-                border-radius: 0;
-              }
-
-              .print-button {
-                display: none;
-              }
-
-              @page {
-                margin: 15mm;
-              }
-            }
-          </style>
-        </head>
-
-        <body>
-          <button class="print-button" onclick="window.print()">Salvar como PDF</button>
-
-          <div class="page">
-            <div class="header">
-              ${logoHtml}
-
-              <h1 class="title">Relatório Final da Obrigação</h1>
-              <p class="subtitle">Pretos Velhos 2026</p>
-
-              <p class="meta"><strong>Casa:</strong> Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú</p>
-              <p class="meta"><strong>Bàbálòrìṣà:</strong> Geraldo Nunes da Rocha</p>
-              <p class="meta"><strong>Data oficial:</strong> ${officialDate}</p>
-              <p class="meta"><strong>Gerado em:</strong> ${generatedAt}</p>
-
-              <p class="blessing">Adorei as Almas. 🍃</p>
-            </div>
-
-            <div class="report-body">${formattedReportHtml}</div>
-          </div>
-        </body>
-      </html>`;
-
-    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const printWindow = window.open(url, '_blank');
-
-    if (!printWindow) {
-      URL.revokeObjectURL(url);
-      alert('O navegador bloqueou a abertura do relatório. Permita pop-ups para este site e tente novamente.');
-      return;
-    }
-
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-    }, 60000);
-  };
-
   const handleSaveResourceEntry = async (itemName: string, section: string) => {
     if (!newItemResp.trim() || !user) return;
 
@@ -999,6 +788,7 @@ const App = () => {
             <h2 className="text-sm md:text-lg font-bold text-white/80 uppercase tracking-[0.4em] mb-1 transition-all">
               OBRIGAÇÃO
             </h2>
+
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black uppercase tracking-[0.05em] leading-none drop-shadow-lg text-amber-500 transition-all">
               PRETOS VELHOS
             </h1>
@@ -1006,9 +796,11 @@ const App = () => {
 
           <div className="flex items-center justify-center gap-3 mt-4">
             <div className="h-[2px] w-8 bg-amber-500/40 rounded-full" />
+
             <p className="text-amber-100/50 font-black text-[10px] md:text-xs tracking-[0.5em] uppercase">
               ADOREI AS ALMAS
             </p>
+
             <div className="h-[2px] w-8 bg-amber-500/40 rounded-full" />
           </div>
 
@@ -1066,6 +858,7 @@ const App = () => {
                         <p className="text-[8px] font-black uppercase opacity-60 tracking-[0.3em] text-amber-100 mb-1">
                           DATA OFICIAL CONFIRMADA
                         </p>
+
                         <p className="text-xl md:text-2xl font-black uppercase text-amber-400 leading-none">
                           {dateOptions.find((d) => d.id === settings.officialDateId)?.label}
                         </p>
@@ -1094,6 +887,7 @@ const App = () => {
                         <p className="text-[8px] uppercase font-black text-stone-500 mb-1 tracking-widest">
                           TOTAL MATERIAIS
                         </p>
+
                         <p className="text-xl md:text-2xl font-black text-amber-100">
                           {formatCurrency(totalCost)}
                         </p>
@@ -1103,6 +897,7 @@ const App = () => {
                         <p className="text-[8px] font-black text-black/60 uppercase tracking-widest mb-1">
                           COTA P/ PESSOA
                         </p>
+
                         <p className="text-xl md:text-2xl font-black text-black leading-none">
                           {formatCurrency(costPerPerson)}
                         </p>
@@ -1114,6 +909,7 @@ const App = () => {
                         <p className="text-[9px] font-black text-stone-500 uppercase tracking-[0.3em]">
                           ARRECADAÇÃO COLETIVA
                         </p>
+
                         <span className="text-[10px] font-black text-amber-500">
                           {percentCollected.toFixed(0)}%
                         </span>
@@ -1132,6 +928,7 @@ const App = () => {
                         <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">
                           JÁ ARRECADADO
                         </p>
+
                         <p className="text-lg md:text-xl font-black text-green-500">
                           {formatCurrency(totalReceived)}
                         </p>
@@ -1141,6 +938,7 @@ const App = () => {
                         <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest mb-1">
                           FALTA ARRECADAR
                         </p>
+
                         <p className="text-lg md:text-xl font-black text-red-500">
                           {formatCurrency(remainingTarget)}
                         </p>
@@ -1155,6 +953,7 @@ const App = () => {
                   <div className="flex items-center justify-between mb-5 pb-2 border-b-2 border-stone-50">
                     <div className="flex items-center gap-2 text-[#3e2723]">
                       <Users2 size={18} />
+
                       <h3 className="font-black uppercase text-[10px] tracking-widest">
                         PRESENÇA
                       </h3>
@@ -1266,13 +1065,14 @@ const App = () => {
                       >
                         <div className="flex items-center gap-3">
                           <ItemIcon emoji={herb.emoji} />
+
                           <p className="font-black text-stone-800 text-[10px] uppercase tracking-tighter">
                             {herb.item}
                           </p>
                         </div>
 
                         <CurrencyInput
-                          initialValue={prices[herb.id]}
+                          initialValue={prices[herb.id] || 0}
                           onSave={(val) => handlePriceUpdate(herb.id, val)}
                           isAdmin={isAdmin}
                           isCompact={true}
@@ -1419,6 +1219,7 @@ const App = () => {
                 {!isAdmin && (
                   <div className="flex items-center gap-2 bg-stone-50 px-4 py-2 rounded-xl border border-stone-100 self-start md:self-auto">
                     <Lock size={14} className="text-amber-600" />
+
                     <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">
                       Somente leitura
                     </span>
@@ -1440,12 +1241,13 @@ const App = () => {
 
                 {quotaParticipantsList.map((name) => {
                   const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
-                  const isFullyPaid = costPerPerson > 0 && pay.paid >= costPerPerson;
-                  const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - pay.paid) : 0;
+                  const paid = Number(pay.paid) || 0;
+                  const isFullyPaid = costPerPerson > 0 && paid >= costPerPerson;
+                  const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - paid) : 0;
 
                   const statusColor = isFullyPaid
                     ? 'text-green-600 bg-green-50 border-green-100'
-                    : pay.paid > 0
+                    : paid > 0
                       ? 'text-amber-600 bg-amber-50 border-amber-100'
                       : 'text-red-600 bg-red-50 border-red-100';
 
@@ -1477,7 +1279,7 @@ const App = () => {
                           </label>
 
                           <CurrencyInput
-                            initialValue={pay.paid}
+                            initialValue={paid}
                             onSave={(val) => updatePayment(name, 'paid', val)}
                             isAdmin={isAdmin}
                           />
@@ -1743,93 +1545,13 @@ const App = () => {
         </div>
       )}
 
-      {isReportOpen && (
-        <div className="fixed inset-0 z-[700] flex items-center justify-center p-4 bg-stone-900/90 backdrop-blur-md">
-          <div className="bg-white w-full max-w-lg md:max-w-3xl h-[85vh] md:h-[80vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="bg-stone-50 border-b-2 border-stone-100 p-6 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-black text-stone-900 uppercase tracking-tighter">
-                  Relatório
-                </h3>
-                <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">
-                  Obrigação Pretos Velhos
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  onClick={handleGeneratePDF}
-                  className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                >
-                  <FileDown size={14} />
-                  Gerar PDF
-                </button>
-
-                <button
-                  onClick={() => setIsReportOpen(false)}
-                  className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div id="report-content" className="flex-1 overflow-y-auto p-6 sm:p-8 bg-white text-left">
-              <div className="max-w-2xl mx-auto">
-                <div className="text-center pb-6 mb-6 border-b border-stone-200">
-                  <img
-                    src="/logo-ile.png"
-                    alt="Logo do Ilè"
-                    className="w-28 sm:w-32 h-auto mx-auto mb-4"
-                  />
-
-                  <h2 className="font-black text-base sm:text-lg uppercase tracking-wide text-stone-900">
-                    Relatório Final da Obrigação
-                  </h2>
-
-                  <p className="font-black text-sm sm:text-base uppercase tracking-wide text-stone-800 mt-1">
-                    Pretos Velhos 2026
-                  </p>
-
-                  <div className="mt-5 space-y-1 text-[11px] sm:text-sm text-stone-700 leading-relaxed">
-                    <p>
-                      <strong>Casa:</strong> Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú
-                    </p>
-                    <p>
-                      <strong>Bàbálòrìṣà:</strong> Geraldo Nunes da Rocha
-                    </p>
-                    <p>
-                      <strong>Data oficial:</strong> {officialDate}
-                    </p>
-                    <p>
-                      <strong>Gerado em:</strong> {generatedAt}
-                    </p>
-                  </div>
-
-                  <p className="text-sm font-semibold text-stone-700 mt-4">
-                    Adorei as Almas. 🍃
-                  </p>
-                </div>
-
-                <div
-                  className="font-mono text-[11px] sm:text-[12px] text-stone-800 leading-relaxed whitespace-pre-wrap break-words m-0 [&_strong]:font-black [&_strong]:text-stone-950"
-                  dangerouslySetInnerHTML={{ __html: formattedReportHtml }}
-                />
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-stone-50 bg-stone-50/50 flex flex-col items-center">
-              <div className="w-32 h-[1px] bg-stone-300 mb-2" />
-
-              <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest text-center">
-                Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú
-                <br />
-                Bàbálòrìṣà Geraldo Nunes da Rocha
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReportModal
+        isOpen={isReportOpen}
+        onClose={() => setIsReportOpen(false)}
+        reportText={reportText}
+        officialDate={officialDate}
+        generatedAt={generatedAt}
+      />
     </div>
   );
 };
