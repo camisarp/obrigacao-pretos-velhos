@@ -413,7 +413,7 @@ const App = () => {
 
   const reportText = useMemo(() => {
     let report = `Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú\n`;
-    report += `Bàbálórìṣà Geraldo Nunes da Rocha\n\n`;
+    report += `Bàbálórìṣà Geraldo Nunes da Rocha\n`;
     report += `RELATÓRIO FINAL - OBRIGAÇÃO PRETOS VELHOS 2025\n`;
     report += `--------------------------------------------------\n\n`;
     report += `👥 PRESENÇA TOTAL: ${totalParticipants} PESSOAS\n`;
@@ -547,12 +547,24 @@ const App = () => {
 
   const handleAddVote = async () => {
     if (!tempName.trim() || !selectedDateId || !user || isSaving) return;
-    setIsSaving(true);
 
     const name = normalizeName(tempName);
 
+    const alreadyVotedThisDate = votes.some(
+      (vote) => normalizeName(vote.userName) === name && vote.dateId === selectedDateId
+    );
+
+    if (alreadyVotedThisDate) {
+      alert(name + ' já confirmou presença nessa data.');
+      return;
+    }
+
+    setIsSaving(true);
+
+    const voteId = selectedDateId + '_' + encodeURIComponent(name);
+
     try {
-      await addDoc(collection(db, 'votes'), {
+      await setDoc(doc(db, 'votes', voteId), {
         userId: user.uid,
         userName: name,
         dateId: selectedDateId,
@@ -636,7 +648,7 @@ const App = () => {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
         <Loader2 className="animate-spin text-amber-600" size={48} />
-        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando ao Ilè...</p>
+        <p className="font-black text-[10px] text-stone-400 uppercase tracking-[0.2em]">Conectando à Zeladoria...</p>
       </div>
     );
   }
