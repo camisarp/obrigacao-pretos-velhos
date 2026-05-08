@@ -1,4 +1,4 @@
-import { Lock, Pencil, PlusCircle } from 'lucide-react';
+import { Lock, Pencil, Plus, PlusCircle } from 'lucide-react';
 import ResourceForm from './ResourceForm';
 
 type SectionProps = {
@@ -9,6 +9,7 @@ type SectionProps = {
   bgColor: string;
   isResource?: boolean;
   onEdit: (person: any, item: string) => void;
+  onAddItem?: () => void;
   activeItemTarget: string | null;
   setActiveItemTarget: (value: string | null) => void;
   editingId: string | null;
@@ -25,7 +26,9 @@ type SectionProps = {
 };
 
 const ItemIcon = ({ emoji, color = 'bg-stone-100' }: { emoji: string; color?: string }) => (
-  <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center shadow-sm text-xl shrink-0 border border-stone-200/50`}>
+  <div
+    className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center shadow-sm text-xl shrink-0 border border-stone-200/50`}
+  >
     {emoji}
   </div>
 );
@@ -38,6 +41,7 @@ const Section = ({
   bgColor,
   isResource,
   onEdit,
+  onAddItem,
   activeItemTarget,
   setActiveItemTarget,
   editingId,
@@ -54,11 +58,27 @@ const Section = ({
 }: SectionProps) =>
   items.length > 0 && (
     <div className="mb-8 w-full">
-      <div className={`flex items-center gap-3 mb-6 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90 text-left`}>
-        <Icon size={18} className="shrink-0" />
-        <p className="text-[10px] font-black uppercase tracking-widest leading-none text-current">
-          {title}
-        </p>
+      <div className="flex items-center justify-between gap-3 mb-6">
+        <div
+          className={`flex items-center gap-3 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90 text-left`}
+        >
+          <Icon size={18} className="shrink-0" />
+
+          <p className="text-[10px] font-black uppercase tracking-widest leading-none text-current">
+            {title}
+          </p>
+        </div>
+
+        {isResource && isAdmin && onAddItem && (
+          <button
+            type="button"
+            onClick={onAddItem}
+            className="flex items-center gap-2 bg-white text-[#3e2723] border border-stone-200 rounded-2xl px-4 py-3 font-black text-[8px] uppercase tracking-widest shadow-md active:scale-95 transition-all"
+          >
+            <Plus size={14} />
+            Novo item
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
@@ -111,6 +131,12 @@ const Section = ({
                 </p>
 
                 <div className="flex flex-wrap gap-1.5">
+                  {i.people.length === 0 && (
+                    <p className="text-[9px] font-bold text-stone-300 uppercase italic">
+                      Nenhum responsável ainda
+                    </p>
+                  )}
+
                   {i.people.map((p: any, pIdx: number) => (
                     <div
                       key={pIdx}
@@ -118,7 +144,11 @@ const Section = ({
                     >
                       <p className="text-[9px] font-bold text-[#3e2723] uppercase">
                         {String(p.name)}
-                        {!hideQty && <span className="text-amber-600 font-black ml-0.5">({p.qty})</span>}
+                        {!hideQty && (
+                          <span className="text-amber-600 font-black ml-0.5">
+                            ({p.qty})
+                          </span>
+                        )}
                       </p>
 
                       {isAdmin && (

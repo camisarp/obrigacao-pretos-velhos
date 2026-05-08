@@ -37,6 +37,7 @@ import {
   FileDown,
 } from 'lucide-react';
 
+import AddResourceItemModal from './components/AddResourceItemModal';
 import AttendanceControl from './components/AttendanceControl';
 import BackToTopButton from './components/BackToTopButton';
 import CurrencyInput from './components/CurrencyInput';
@@ -72,6 +73,7 @@ const App = () => {
     officialDateId: null,
   });
   const [additionalItems, setAdditionalItems] = useState<any[]>([]);
+  const [resourceItems, setResourceItems] = useState<any[]>([]);
   const [payments, setPayments] = useState<Record<string, any>>({});
   const [attendance, setAttendance] = useState<Record<string, any>>({});
 
@@ -79,6 +81,9 @@ const App = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
+
+  const [isNewItemModalOpen, setIsNewItemModalOpen] = useState(false);
+  const [newItemDefaultSection, setNewItemDefaultSection] = useState('MESA DE COMIDAS');
 
   const [adminInput, setAdminInput] = useState('');
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
@@ -159,6 +164,10 @@ const App = () => {
       setAdditionalItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const unsubResourceItems = onSnapshot(collection(db, 'resource_items'), (snap) => {
+      setResourceItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     const unsubPayments = onSnapshot(collection(db, 'payments'), (snap) => {
       const p: Record<string, any> = {};
 
@@ -184,10 +193,21 @@ const App = () => {
       unsubPrices();
       unsubSettings();
       unsubAddItems();
+      unsubResourceItems();
       unsubPayments();
       unsubAttendance();
     };
   }, [user]);
+
+  const getResourceItemNamesBySection = (section: string) => {
+    return resourceItems
+      .filter((item) => item.section === section && item.active !== false)
+      .map((item) => normalizeName(item.item));
+  };
+
+  const mergeItemNames = (baseItems: string[], section: string) => {
+    return [...new Set([...baseItems.map((item) => normalizeName(item)), ...getResourceItemNamesBySection(section)])];
+  };
 
   const generateCombinedData = (nameList: string[]) => {
     const emojiMap: Record<string, string> = {
@@ -217,6 +237,10 @@ const App = () => {
     return nameList.map((name) => {
       const responsiblesMap: Record<string, any> = {};
 
+      const dynamicItem = resourceItems.find((resource) => {
+        return normalizeName(resource.item) === name && resource.active !== false;
+      });
+
       additionalItems
         .filter((entry) => {
           return entry.item === name && Number(entry.qty) > 0 && entry.section !== 'removed';
@@ -238,7 +262,7 @@ const App = () => {
       return {
         item: name,
         total: people.reduce((acc: number, person: any) => acc + Math.max(0, person.qty), 0),
-        emoji: emojiMap[name] || '📦',
+        emoji: dynamicItem?.emoji || emojiMap[name] || '📦',
         people,
       };
     });
@@ -246,12 +270,14 @@ const App = () => {
 
   const allItemsForReport = useMemo(() => {
     return {
-      comidas: generateCombinedData(staticData.comidasList),
-      bebidas: generateCombinedData(staticData.drinks),
-      velas: generateCombinedData(staticData.velas),
-      fundamento: generateCombinedData(staticData.fundamentoExu),
+      comidas: generateCombinedData(mergeItemNames(staticData.comidasList, 'MESA DE COMIDAS')),
+      bebidas: generateCombinedData(mergeItemNames(staticData.drinks, 'CAFÉ E BEBIDAS')),
+      velas: generateCombinedData(mergeItemNames(staticData.velas, 'VELAS DE SÉTIMO DIA')),
+      fundamento: generateCombinedData(
+        mergeItemNames(staticData.fundamentoExu, 'FUNDAMENTOS DE EXU ONAN E CATIÇO')
+      ),
     };
-  }, [additionalItems]);
+  }, [additionalItems, resourceItems]);
 
   const filteredItems = useMemo(() => {
     const s = searchTerm.toUpperCase();
@@ -337,6 +363,48 @@ const App = () => {
     payments,
     attendance,
   ]);
+
+  const openNewItemModal = (section: string) => {
+    setNewItemDefaultSection(section);
+    setIsNewItemModalOpen(true);
+  };
+
+  const handleAddResourceItem = async (data: { item: string; section: string; emoji: string }) => {
+    if (!user || !isAdmin) return;
+
+    const itemName = normalizeName(data.item);
+
+    const alreadyExists = resourceItems.some((resource) => {
+      return (
+        normalizeName(resource.item) === itemName &&
+        resource.section === data.section &&
+        resource.active !== false
+      );
+    });
+
+    if (alreadyExists) {
+      alert(`${itemName} já existe nessa categoria.`);
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await addDoc(collection(db, 'resource_items'), {
+        item: itemName,
+        section: data.section,
+        emoji: data.emoji || '📦',
+        active: true,
+        at: Date.now(),
+      });
+
+      setIsNewItemModalOpen(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const handleSaveResourceEntry = async (itemName: string, section: string) => {
     if (!newItemResp.trim() || !user) return;
@@ -894,6 +962,7 @@ const App = () => {
                 color="text-amber-900"
                 bgColor="bg-amber-100"
                 isResource
+                onAddItem={() => openNewItemModal('MESA DE COMIDAS')}
                 onEdit={startEdit}
                 activeItemTarget={activeItemTarget}
                 setActiveItemTarget={setActiveItemTarget}
@@ -917,6 +986,7 @@ const App = () => {
                 color="text-[#3e2723]"
                 bgColor="bg-stone-200"
                 isResource
+                onAddItem={() => openNewItemModal('CAFÉ E BEBIDAS')}
                 onEdit={startEdit}
                 activeItemTarget={activeItemTarget}
                 setActiveItemTarget={setActiveItemTarget}
@@ -939,6 +1009,7 @@ const App = () => {
                 color="text-orange-900"
                 bgColor="bg-orange-50"
                 isResource
+                onAddItem={() => openNewItemModal('VELAS DE SÉTIMO DIA')}
                 onEdit={startEdit}
                 activeItemTarget={activeItemTarget}
                 setActiveItemTarget={setActiveItemTarget}
@@ -961,6 +1032,7 @@ const App = () => {
                 color="text-red-900"
                 bgColor="bg-red-50"
                 isResource
+                onAddItem={() => openNewItemModal('FUNDAMENTOS DE EXU ONAN E CATIÇO')}
                 onEdit={startEdit}
                 activeItemTarget={activeItemTarget}
                 setActiveItemTarget={setActiveItemTarget}
@@ -1331,6 +1403,14 @@ const App = () => {
           </div>
         </div>
       )}
+
+      <AddResourceItemModal
+        isOpen={isNewItemModalOpen}
+        onClose={() => setIsNewItemModalOpen(false)}
+        onSave={handleAddResourceItem}
+        isSaving={isSaving}
+        defaultSection={newItemDefaultSection}
+      />
 
       <ReportModal
         isOpen={isReportOpen}
