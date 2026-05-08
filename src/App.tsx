@@ -31,6 +31,7 @@ import {
   Unlock,
   X,
   FileDown,
+  ArrowUp,
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIREBASE DO SEU PROJETO ---
@@ -222,6 +223,7 @@ const App = () => {
   const [tempName, setTempName] = useState('');
   const [isAdmin, setIsAdmin] = useState(localStorage.getItem('obrigacao_admin') === 'true');
   const [isSaving, setIsSaving] = useState(false);
+  const [showBackToTop, setShowBackToTop] = useState(false);
   const [activeItemTarget, setActiveItemTarget] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [newItemResp, setNewItemResp] = useState('');
@@ -253,6 +255,20 @@ const App = () => {
     return () => {
       unsubscribe();
       clearTimeout(timer);
+    };
+  }, []);
+
+  // Botão voltar ao topo
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowBackToTop(window.scrollY > 500);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll();
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
     };
   }, []);
 
@@ -1056,6 +1072,13 @@ const App = () => {
     setNewItemQty(person.qty.toString());
   };
 
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
@@ -1522,6 +1545,17 @@ const App = () => {
           </div>
         </div>
       </main>
+
+      {showBackToTop && (
+        <button
+          type="button"
+          onClick={scrollToTop}
+          aria-label="Voltar ao topo"
+          className="fixed bottom-6 right-6 z-[250] w-12 h-12 rounded-full bg-amber-600 text-white shadow-2xl shadow-amber-900/30 border-b-4 border-amber-900 flex items-center justify-center active:scale-90 hover:bg-amber-700 transition-all"
+        >
+          <ArrowUp size={22} />
+        </button>
+      )}
 
       {isAdminModalOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
