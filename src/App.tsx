@@ -2,36 +2,66 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc } from 'firebase/firestore';
-import { 
-  Calendar, Clock, AlertTriangle, Search, ChefHat, Wine, Sparkles, Apple, 
-  PlusCircle, XCircle, Coffee, Heart, Users2, Calculator, DollarSign, 
-  Crown, CheckCircle, Loader2, Wind, Leaf, Flame, Plus, Package, Pencil, Trash2,
-  Table, ListChecks, FileText, ExternalLink, Save, ArrowLeft, TrendingUp,
-  Soup, Beef, Utensils, Cookie, Sprout, Droplet, CupSoda, Beer, Lock, Unlock, X, FileDown
+import {
+  Clock,
+  AlertTriangle,
+  Search,
+  ChefHat,
+  Sparkles,
+  PlusCircle,
+  XCircle,
+  Coffee,
+  Heart,
+  Users2,
+  Calculator,
+  DollarSign,
+  Crown,
+  CheckCircle,
+  Loader2,
+  Wind,
+  Leaf,
+  Flame,
+  Plus,
+  Pencil,
+  Trash2,
+  ListChecks,
+  FileText,
+  ExternalLink,
+  Lock,
+  Unlock,
+  X,
+  FileDown,
 } from 'lucide-react';
 
 // --- CONFIGURAÇÃO FIREBASE DO SEU PROJETO ---
-// ATENÇÃO: COLOQUE AS SUAS CHAVES AQUI (Tiradas do Passo 2 do Guia)
-// Não apague as aspas, apenas substitua os textos por dentro delas!
 const firebaseConfig = {
-  apiKey: "AIzaSyCMmTsBY9KKa7-VUs7QPo_Q3wMxh_WnLVQ",
-  authDomain: "obrigacao-pretos-velhos.firebaseapp.com",
-  projectId: "obrigacao-pretos-velhos",
-  storageBucket: "obrigacao-pretos-velhos.firebasestorage.app",
-  messagingSenderId: "604295724540",
-  appId: "1:604295724540:web:ebf88353bf77bf80d98679"
+  apiKey: 'AIzaSyCMmTsBY9KKa7-VUs7QPo_Q3wMxh_WnLVQ',
+  authDomain: 'obrigacao-pretos-velhos.firebaseapp.com',
+  projectId: 'obrigacao-pretos-velhos',
+  storageBucket: 'obrigacao-pretos-velhos.firebasestorage.app',
+  messagingSenderId: '604295724540',
+  appId: '1:604295724540:web:ebf88353bf77bf80d98679',
 };
-
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-const ADMIN_PIN = "2026"; 
+const ADMIN_PIN = '2026';
+
+// Regra da cota: essas pessoas aparecem na presença, mas não entram na divisão financeira.
+const NOMES_FORA_DA_COTA = ['CAMILA21', 'CAMILA 21', 'BIA'];
+
+const normalizeName = (value) => {
+  return String(value || '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toUpperCase();
+};
 
 // --- COMPONENTES AUXILIARES ---
 
-const ItemIcon = ({ emoji, color = "bg-stone-100" }) => (
+const ItemIcon = ({ emoji, color = 'bg-stone-100' }) => (
   <div className={`w-10 h-10 ${color} rounded-xl flex items-center justify-center shadow-sm text-xl shrink-0 border border-stone-200/50`}>
     {emoji}
   </div>
@@ -46,12 +76,13 @@ const CurrencyInput = ({ initialValue, onSave, isAdmin, isCompact = false }) => 
     if (formatted !== localValue && document.activeElement !== inputRef.current) {
       setLocalValue(formatted);
     }
-  }, [initialValue]);
+  }, [initialValue, localValue]);
 
   const handleChange = (e) => {
     if (!isAdmin) return;
     const val = e.target.value.replace(/[^0-9,]/g, '');
     setLocalValue(val);
+
     if (val && !val.endsWith(',')) {
       const numericVal = parseFloat(val.replace(',', '.'));
       if (!isNaN(numericVal)) onSave(numericVal);
@@ -60,17 +91,17 @@ const CurrencyInput = ({ initialValue, onSave, isAdmin, isCompact = false }) => 
     }
   };
 
-  const containerClasses = isCompact 
+  const containerClasses = isCompact
     ? `flex items-center gap-1.5 rounded-xl p-2 px-3 border shadow-inner transition-all ${isAdmin ? 'bg-white border-stone-200 focus-within:border-amber-500' : 'bg-stone-100 border-stone-100 opacity-60'}`
     : `flex items-center gap-2 rounded-2xl p-2.5 border shadow-inner group transition-all ${isAdmin ? 'bg-white border-stone-200 focus-within:ring-2 ring-amber-500/20' : 'bg-stone-100 border-stone-100 opacity-70'}`;
 
   return (
     <div className={containerClasses}>
       <span className="text-[10px] font-black text-amber-600">R$</span>
-      <input 
+      <input
         ref={inputRef}
-        type="text" 
-        inputMode="decimal" 
+        type="text"
+        inputMode="decimal"
         placeholder="0,00"
         className={`${isCompact ? 'w-20' : 'w-full'} bg-transparent outline-none font-black text-xs text-stone-900 disabled:cursor-not-allowed text-right`}
         value={localValue}
@@ -82,22 +113,66 @@ const CurrencyInput = ({ initialValue, onSave, isAdmin, isCompact = false }) => 
   );
 };
 
-const ResourceForm = ({ itemName, onConfirm, onCancel, onDelete, isSaving, newItemResp, setNewItemResp, newItemQty, setNewItemQty, isEditing, editingId, sectionLabel, hideQty }) => (
+const ResourceForm = ({
+  itemName,
+  onConfirm,
+  onCancel,
+  onDelete,
+  isSaving,
+  newItemResp,
+  setNewItemResp,
+  newItemQty,
+  setNewItemQty,
+  isEditing,
+  editingId,
+  sectionLabel,
+  hideQty,
+}) => (
   <div className="mt-4 p-4 bg-amber-50/90 backdrop-blur-sm rounded-2xl border-2 border-amber-200 animate-in fade-in slide-in-from-top-2 shadow-inner">
     <div className="flex flex-col gap-3">
       <p className="text-[10px] font-black uppercase text-amber-900 tracking-widest">
         {isEditing ? `EDITAR EM ${sectionLabel}` : `ACRESCENTAR EM ${sectionLabel}`}
       </p>
-      <div className={hideQty ? "flex flex-col" : "grid grid-cols-3 gap-2"}>
-        <input type="text" placeholder="QUEM TRAZ?" className={`${hideQty ? 'w-full' : 'col-span-2'} bg-white border border-amber-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-600 text-stone-900 shadow-sm uppercase`} value={newItemResp} onChange={(e) => setNewItemResp(e.target.value)} disabled={isEditing} />
-        {!hideQty && <input type="number" placeholder="QTD" className="col-span-1 bg-white border border-amber-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-600 text-stone-900 text-center shadow-sm" value={newItemQty} onChange={(e) => setNewItemQty(e.target.value)} />}
+      <div className={hideQty ? 'flex flex-col' : 'grid grid-cols-3 gap-2'}>
+        <input
+          type="text"
+          placeholder="QUEM TRAZ?"
+          className={`${hideQty ? 'w-full' : 'col-span-2'} bg-white border border-amber-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-600 text-stone-900 shadow-sm uppercase`}
+          value={newItemResp}
+          onChange={(e) => setNewItemResp(e.target.value)}
+          disabled={isEditing}
+        />
+        {!hideQty && (
+          <input
+            type="number"
+            placeholder="QTD"
+            className="col-span-1 bg-white border border-amber-200 rounded-xl p-3 text-xs font-bold outline-none focus:border-amber-600 text-stone-900 text-center shadow-sm"
+            value={newItemQty}
+            onChange={(e) => setNewItemQty(e.target.value)}
+          />
+        )}
       </div>
       <div className="flex flex-col gap-2">
         <div className="flex gap-2">
-          <button onClick={() => onConfirm(itemName)} disabled={isSaving || !newItemResp.trim()} className="flex-1 bg-[#3e2723] text-white rounded-xl py-3 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-95 disabled:opacity-50 border-b-4 border-black">{isSaving ? 'A GUARDAR...' : isEditing ? 'ATUALIZAR' : 'CONFIRMAR'}</button>
-          <button onClick={onCancel} className="px-4 py-3 text-[10px] font-black text-stone-400 uppercase tracking-widest">VOLTAR</button>
+          <button
+            onClick={() => onConfirm(itemName)}
+            disabled={isSaving || !newItemResp.trim()}
+            className="flex-1 bg-[#3e2723] text-white rounded-xl py-3 font-black text-[10px] uppercase tracking-[0.2em] shadow-lg active:scale-95 disabled:opacity-50 border-b-4 border-black"
+          >
+            {isSaving ? 'A GUARDAR...' : isEditing ? 'ATUALIZAR' : 'CONFIRMAR'}
+          </button>
+          <button onClick={onCancel} className="px-4 py-3 text-[10px] font-black text-stone-400 uppercase tracking-widest">
+            VOLTAR
+          </button>
         </div>
-        {isEditing && <button onClick={() => onDelete(editingId, newItemResp, itemName)} className="w-full bg-red-50 text-red-600 rounded-xl py-2 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-red-100 active:bg-red-100 transition-colors"><Trash2 size={12} /> ELIMINAR ESTE REGISTRO</button>}
+        {isEditing && (
+          <button
+            onClick={() => onDelete(editingId, newItemResp, itemName)}
+            className="w-full bg-red-50 text-red-600 rounded-xl py-2 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 border border-red-100 active:bg-red-100 transition-colors"
+          >
+            <Trash2 size={12} /> ELIMINAR ESTE REGISTRO
+          </button>
+        )}
       </div>
     </div>
   </div>
@@ -108,7 +183,7 @@ const ResourceForm = ({ itemName, onConfirm, onCancel, onDelete, isSaving, newIt
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState('dashboard'); 
+  const [view, setView] = useState('dashboard');
   const [votes, setVotes] = useState([]);
   const [prices, setPrices] = useState({});
   const [settings, setSettings] = useState({ officialDateId: null });
@@ -123,7 +198,7 @@ const App = () => {
   const [tempName, setTempName] = useState('');
   const [isAdmin, setIsAdmin] = useState(localStorage.getItem('obrigacao_admin') === 'true');
   const [isSaving, setIsSaving] = useState(false);
-  const [activeItemTarget, setActiveItemTarget] = useState(null); 
+  const [activeItemTarget, setActiveItemTarget] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [newItemResp, setNewItemResp] = useState('');
   const [newItemQty, setNewItemQty] = useState('');
@@ -136,34 +211,41 @@ const App = () => {
       try {
         await signInAnonymously(auth);
       } catch (err) {
-        console.error("Auth error:", err);
+        console.error('Auth error:', err);
       } finally {
         setLoading(false);
       }
     };
+
     initAuth();
+
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setLoading(false);
     });
 
     const timer = setTimeout(() => setLoading(false), 3000);
+
     return () => {
       unsubscribe();
       clearTimeout(timer);
     };
   }, []);
 
-  // Listeners de Dados (Apontando diretamente para o seu Firebase)
+  // Listeners de Dados
   useEffect(() => {
     if (!user || !db) return;
 
     const unsubVotes = onSnapshot(collection(db, 'votes'), (snap) => {
-      setVotes(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setVotes(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
     const unsubPrices = onSnapshot(collection(db, 'prices'), (snap) => {
-      const p = {}; snap.docs.forEach(d => p[d.id] = d.data().value); setPrices(p);
+      const p = {};
+      snap.docs.forEach((d) => {
+        p[d.id] = d.data().value;
+      });
+      setPrices(p);
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'global'), (snap) => {
@@ -171,85 +253,162 @@ const App = () => {
     });
 
     const unsubAddItems = onSnapshot(collection(db, 'extra_items'), (snap) => {
-      setAdditionalItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setAdditionalItems(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
     const unsubPayments = onSnapshot(collection(db, 'payments'), (snap) => {
-      const p = {}; snap.docs.forEach(d => p[d.id] = d.data()); setPayments(p);
+      const p = {};
+      snap.docs.forEach((d) => {
+        p[d.id] = d.data();
+      });
+      setPayments(p);
     });
 
     return () => {
-      unsubVotes(); unsubPrices(); unsubSettings(); unsubAddItems(); unsubPayments();
+      unsubVotes();
+      unsubPrices();
+      unsubSettings();
+      unsubAddItems();
+      unsubPayments();
     };
   }, [user]);
 
   const staticData = {
-    comidasList: ["FEIJOADA", "VATAPÁ", "CANJICA", "PAMONHA", "MILHO VERDE", "BOLO DE TRIGO", "BOLO DE MACAXEIRA", "MUNGUZÁ", "TAPIOCA", "COCADA"],
+    comidasList: ['FEIJOADA', 'VATAPÁ', 'CANJICA', 'PAMONHA', 'MILHO VERDE', 'BOLO DE TRIGO', 'BOLO DE MACAXEIRA', 'MUNGUZÁ', 'TAPIOCA', 'COCADA'],
     ervas: [
-      { id: 'flores', item: 'FLORES BRANCAS', emoji: "💐" },
-      { id: 'arruda', item: 'ARRUDA', emoji: "🌿" },
-      { id: 'alfazema', item: 'ALFAZEMA', emoji: "💜" },
-      { id: 'fumo', item: 'FUMO', emoji: "🌬️" },
+      { id: 'flores', item: 'FLORES BRANCAS', emoji: '💐' },
+      { id: 'arruda', item: 'ARRUDA', emoji: '🌿' },
+      { id: 'alfazema', item: 'ALFAZEMA', emoji: '💜' },
+      { id: 'fumo', item: 'FUMO', emoji: '🌬️' },
     ],
-    fundamentoExu: ["LARANJAS 🍊", "PALMA BANANA 🍌", "ABACAXIS 🍍", "FARINHAS 🌾", "AZEITE 🏺"],
-    drinks: ["CAFÉ", "VINHO", "VINAGRE DE ÁLCOOL", "REFRIGERANTE", "CERVEJA"],
-    velas: ["VELAS DE SÉTIMO DIA"]
+    fundamentoExu: ['LARANJAS', 'PALMA BANANA', 'ABACAXIS', 'FARINHAS', 'AZEITE'],
+    drinks: ['CAFÉ', 'VINHO', 'VINAGRE DE ÁLCOOL', 'REFRIGERANTE', 'CERVEJA'],
+    velas: ['VELAS DE SÉTIMO DIA'],
   };
 
   const generateCombinedData = (nameList) => {
     const defaultData = {
-      "FEIJOADA": [{ resp: "KARLA", qty: 1 }, { resp: "THIAGO", qty: 1 }],
-      "VATAPÁ": [{ resp: "MARIANA", qty: 1 }, { resp: "CAMILA", qty: 1 }],
-      "CANJICA": { resp: "CAIO", qty: 1 }, "PAMONHA": { resp: "POLLY", qty: 1 },
-      "MILHO VERDE": { resp: "FERNANDO", qty: 1 }, "BOLO DE TRIGO": { resp: "BRUNA", qty: 1 },
-      "BOLO DE MACAXEIRA": { resp: "BIA", qty: 1 }, "MUNGUZÁ": { resp: "MAYARA", qty: 1 },
-      "TAPIOCA": { resp: "BRUNA", qty: 1 }, "COCADA": { resp: "ANDRESSA", qty: 1 },
-      "CAFÉ": { resp: "BRUNA", qty: 1, emoji: "☕" }, "VINHO": { resp: "MARIANA", qty: 1, emoji: "🍷" },
-      "VINAGRE DE ÁLCOOL": { resp: "BIA", qty: 1, emoji: "🍶" },
-      "REFRIGERANTE": [{ resp: "BRUNA", qty: 1 }, { resp: "SHAYLANE", qty: 1 }],
-      "CERVEJA": { resp: "OPCIONAL", qty: 0, emoji: "🍺" },
-      "VELAS DE SÉTIMO DIA": ["MARIANA", "BRUNA", "FERNANDO", "CAIO", "ANDRESSA", "MAYARA"].map(n => ({ resp: n, qty: 1 })),
-      "LARANJAS 🍊": { resp: "RAFAEL", qty: 9, emoji: "🍊" }, "PALMA BANANA 🍌": { resp: "RAFAEL", qty: 1, emoji: "🍌" },
-      "ABACAXIS 🍍": { resp: "RAFAEL", qty: 2, emoji: "🍍" }, "FARINHAS 🌾": { resp: "SHAYLANE", qty: 2, emoji: "🌾" },
-      "AZEITE 🏺": { resp: "SHAYLANE", qty: 1, emoji: "🏺" }
+      FEIJOADA: [
+        { resp: 'KARLA', qty: 1 },
+        { resp: 'THIAGO', qty: 1 },
+      ],
+      VATAPÁ: [
+        { resp: 'MARIANA', qty: 1 },
+        { resp: 'CAMILA', qty: 1 },
+      ],
+      CANJICA: { resp: 'CAIO', qty: 1 },
+      PAMONHA: { resp: 'POLLY', qty: 1 },
+      'MILHO VERDE': { resp: 'FERNANDO', qty: 1 },
+      'BOLO DE TRIGO': { resp: 'BRUNA', qty: 1 },
+      'BOLO DE MACAXEIRA': { resp: 'BIA', qty: 1 },
+      MUNGUZÁ: { resp: 'MAYARA', qty: 1 },
+      TAPIOCA: { resp: 'BRUNA', qty: 1 },
+      COCADA: { resp: 'ANDRESSA', qty: 1 },
+      CAFÉ: { resp: 'BRUNA', qty: 1, emoji: '☕' },
+      VINHO: { resp: 'MARIANA', qty: 1, emoji: '🍷' },
+      'VINAGRE DE ÁLCOOL': { resp: 'BIA', qty: 1, emoji: '🍶' },
+      REFRIGERANTE: [
+        { resp: 'BRUNA', qty: 1 },
+        { resp: 'SHAYLANE', qty: 1 },
+      ],
+      CERVEJA: { resp: 'OPCIONAL', qty: 0, emoji: '🍺' },
+      'VELAS DE SÉTIMO DIA': ['MARIANA', 'BRUNA', 'FERNANDO', 'CAIO', 'ANDRESSA', 'MAYARA'].map((n) => ({ resp: n, qty: 1 })),
+      LARANJAS: { resp: 'RAFAEL', qty: 9, emoji: '🍊' },
+      'PALMA BANANA': { resp: 'RAFAEL', qty: 1, emoji: '🍌' },
+      ABACAXIS: { resp: 'RAFAEL', qty: 2, emoji: '🍍' },
+      FARINHAS: { resp: 'SHAYLANE', qty: 2, emoji: '🌾' },
+      AZEITE: { resp: 'SHAYLANE', qty: 1, emoji: '🏺' },
     };
-    const emojiMap = { "FEIJOADA": "🥘", "VATAPÁ": "🍲", "CANJICA": "🥣", "PAMONHA": "🫔", "MILHO VERDE": "🌽", "BOLO DE TRIGO": "🥮", "BOLO DE MACAXEIRA": "🥮", "MUNGUZÁ": "🥣", "TAPIOCA": "🥟", "COCADA": "🥥" };
-    
-    return nameList.map(name => {
-      const responsiblesMap = {}; const def = defaultData[name];
-      let itemEmoji = emojiMap[name] || "📦";
-      if (name === "REFRIGERANTE") itemEmoji = "🥤"; if (name === "VELAS DE SÉTIMO DIA") itemEmoji = "🕯️";
+
+    const emojiMap = {
+      FEIJOADA: '🥘',
+      VATAPÁ: '🍲',
+      CANJICA: '🥣',
+      PAMONHA: '🫔',
+      'MILHO VERDE': '🌽',
+      'BOLO DE TRIGO': '🥮',
+      'BOLO DE MACAXEIRA': '🥮',
+      MUNGUZÁ: '🥣',
+      TAPIOCA: '🥟',
+      COCADA: '🥥',
+    };
+
+    return nameList.map((name) => {
+      const responsiblesMap = {};
+      const def = defaultData[name];
+      let itemEmoji = emojiMap[name] || '📦';
+
+      if (name === 'REFRIGERANTE') itemEmoji = '🥤';
+      if (name === 'VELAS DE SÉTIMO DIA') itemEmoji = '🕯️';
       if (def && !Array.isArray(def) && def.emoji) itemEmoji = def.emoji;
-      if (Array.isArray(def)) def.forEach(d => responsiblesMap[d.resp] = { name: d.resp, qty: d.qty, id: `static-${d.resp}`, item: name });
-      else if (def) responsiblesMap[def.resp] = { name: def.resp, qty: def.qty, id: `static-${def.resp}`, item: name };
-      additionalItems.filter(e => e.item === name).forEach(e => { responsiblesMap[e.resp] = { name: e.resp, qty: e.qty, id: e.id, item: name }; });
-      const people = Object.values(responsiblesMap).filter(p => p.qty > 0 || (p.name === "OPCIONAL" && p.qty >= 0)).sort((a,b) => a.name.localeCompare(b.name));
-      return { item: name, total: people.reduce((a,b)=>a+Math.max(0,b.qty), 0), emoji: itemEmoji, people };
+
+      if (Array.isArray(def)) {
+        def.forEach((d) => {
+          responsiblesMap[d.resp] = { name: d.resp, qty: d.qty, id: `static-${d.resp}`, item: name };
+        });
+      } else if (def) {
+        responsiblesMap[def.resp] = { name: def.resp, qty: def.qty, id: `static-${def.resp}`, item: name };
+      }
+
+      additionalItems
+        .filter((e) => e.item === name)
+        .forEach((e) => {
+          responsiblesMap[e.resp] = { name: e.resp, qty: e.qty, id: e.id, item: name };
+        });
+
+      const people = Object.values(responsiblesMap)
+        .filter((p) => p.qty > 0 || (p.name === 'OPCIONAL' && p.qty >= 0))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return {
+        item: name,
+        total: people.reduce((a, b) => a + Math.max(0, b.qty), 0),
+        emoji: itemEmoji,
+        people,
+      };
     });
   };
 
   const filteredItems = useMemo(() => {
     const s = searchTerm.toUpperCase();
-    const filterDynamic = (list) => list.filter(d => d.item.includes(s) || d.people.some(p => p.name.includes(s)));
+    const filterDynamic = (list) => list.filter((d) => d.item.includes(s) || d.people.some((p) => p.name.includes(s)));
+
     return {
       comidas: filterDynamic(generateCombinedData(staticData.comidasList)),
       bebidas: filterDynamic(generateCombinedData(staticData.drinks)),
       velas: filterDynamic(generateCombinedData(staticData.velas)),
-      fundamento: filterDynamic(generateCombinedData(staticData.fundamentoExu))
+      fundamento: filterDynamic(generateCombinedData(staticData.fundamentoExu)),
     };
   }, [searchTerm, additionalItems]);
 
-  const participantsList = useMemo(() => [...new Set(votes.map(v => v.userName))].sort(), [votes]);
+  // Todo mundo que confirmou presença aparece aqui.
+  const participantsList = useMemo(() => {
+    return [...new Set(votes.map((v) => normalizeName(v.userName)).filter(Boolean))].sort();
+  }, [votes]);
+
+  // Só essas pessoas entram na divisão financeira da cota.
+  const quotaParticipantsList = useMemo(() => {
+    return participantsList.filter((name) => !NOMES_FORA_DA_COTA.includes(name));
+  }, [participantsList]);
+
   const totalParticipants = participantsList.length;
-  const totalCost = Object.values(prices).reduce((a, b) => a + b, 0);
-  const costPerPerson = totalParticipants > 0 ? totalCost / totalParticipants : 0;
-  const totalReceived = Object.values(payments).reduce((acc, curr) => acc + (curr.paid || 0), 0);
+  const totalQuotaParticipants = quotaParticipantsList.length;
+
+  const totalCost = Object.values(prices).reduce((acc, value) => acc + (Number(value) || 0), 0);
+
+  const costPerPerson = totalQuotaParticipants > 0 ? totalCost / totalQuotaParticipants : 0;
+
+  const totalReceived = quotaParticipantsList.reduce((acc, name) => {
+    const pay = payments[name] || { paid: 0 };
+    return acc + (Number(pay.paid) || 0);
+  }, 0);
+
   const remainingTarget = Math.max(0, totalCost - totalReceived);
   const percentCollected = totalCost > 0 ? (totalReceived / totalCost) * 100 : 0;
 
   const dateOptions = [
     { id: 'sabado', label: 'SÁBADO, 16/05', color: 'bg-[#3e2723]' },
-    { id: 'domingo', label: 'DOMINGO, 17/05', color: 'bg-[#1a1a1a]' }
+    { id: 'domingo', label: 'DOMINGO, 17/05', color: 'bg-[#1a1a1a]' },
   ];
 
   const reportText = useMemo(() => {
@@ -257,28 +416,28 @@ const App = () => {
     report += `Bàbálórìṣà Geraldo Nunes da Rocha\n`;
     report += `RELATÓRIO FINAL - OBRIGAÇÃO PRETOS VELHOS 2025\n`;
     report += `--------------------------------------------------\n\n`;
-    report += `👥 PRESENÇA TOTAL: ${totalParticipants} PESSOAS\n\n`;
+    report += `👥 PRESENÇA TOTAL: ${totalParticipants} PESSOAS\n`;
+    report += `💰 PESSOAS NA COTA: ${totalQuotaParticipants} PESSOAS\n`;
+    report += `🚫 FORA DA COTA: ${NOMES_FORA_DA_COTA.join(', ')}\n\n`;
     report += `💰 RESUMO FINANCEIRO GERAL:\n`;
     report += `- Custo Total Materiais: ${formatCurrency(totalCost)}\n`;
-    report += `- Valor por Pessoa: ${formatCurrency(costPerPerson)}\n`;
+    report += `- Valor por Pessoa na Cota: ${formatCurrency(costPerPerson)}\n`;
     report += `- Total Arrecadado: ${formatCurrency(totalReceived)}\n`;
     report += `- Pendência Geral: ${formatCurrency(remainingTarget)}\n\n`;
     report += `--------------------------------------------------\n`;
-    report += `📝 DETALHAMENTO POR PARTICIPANTE:\n\n`;
+    report += `📝 DETALHAMENTO POR PARTICIPANTE DA COTA:\n\n`;
 
-    participantsList.forEach(name => {
+    quotaParticipantsList.forEach((name) => {
       const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
       const isFullyPaid = costPerPerson > 0 && pay.paid >= costPerPerson;
       const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - pay.paid) : 0;
       const status = isFullyPaid ? 'PAGO (QUITADO)' : pay.paid > 0 ? 'PAGO (PARCIAL)' : 'PENDENTE';
-      
+
       const userItems = [];
-      const allCategories = [
-        ...filteredItems.comidas, ...filteredItems.bebidas, 
-        ...filteredItems.velas, ...filteredItems.fundamento
-      ];
-      allCategories.forEach(item => {
-        const found = item.people.find(p => p.name === name);
+      const allCategories = [...filteredItems.comidas, ...filteredItems.bebidas, ...filteredItems.velas, ...filteredItems.fundamento];
+
+      allCategories.forEach((item) => {
+        const found = item.people.find((p) => p.name === name);
         if (found) userItems.push(`${item.item} (${found.qty})`);
       });
 
@@ -294,28 +453,30 @@ const App = () => {
 
     report += `--------------------------------------------------\n`;
     report += `📦 RESUMO DE MATERIAIS POR CATEGORIA:\n\n`;
+
     const cats = [
-      { title: "MESA DE COMIDAS", data: filteredItems.comidas },
-      { title: "CAFÉ E BEBIDAS", data: filteredItems.bebidas },
-      { title: "VELAS DE SÉTIMO DIA", data: filteredItems.velas },
-      { title: "FUNDAMENTOS DE EXU ONAN E CATIÇO", data: filteredItems.fundamento }
+      { title: 'MESA DE COMIDAS', data: filteredItems.comidas },
+      { title: 'CAFÉ E BEBIDAS', data: filteredItems.bebidas },
+      { title: 'VELAS DE SÉTIMO DIA', data: filteredItems.velas },
+      { title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO', data: filteredItems.fundamento },
     ];
 
-    cats.forEach(cat => {
+    cats.forEach((cat) => {
       report += `[${cat.title}]\n`;
-      cat.data.forEach(item => {
-        const resps = item.people.map(p => `${p.name} (${p.qty})`).join(', ');
+      cat.data.forEach((item) => {
+        const resps = item.people.map((p) => `${p.name} (${p.qty})`).join(', ');
         if (resps) report += `  - ${item.item}: ${resps}\n`;
       });
       report += `\n`;
     });
 
     return report;
-  }, [totalParticipants, participantsList, totalCost, costPerPerson, totalReceived, remainingTarget, filteredItems, payments]);
+  }, [totalParticipants, totalQuotaParticipants, quotaParticipantsList, totalCost, costPerPerson, totalReceived, remainingTarget, filteredItems, payments]);
 
   const handleGeneratePDF = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
+
     printWindow.document.write(`
       <html>
         <head>
@@ -336,73 +497,133 @@ const App = () => {
   const handleSaveResourceEntry = async (itemName, section) => {
     if (!newItemResp.trim() || !user) return;
     setIsSaving(true);
-    const upperResp = newItemResp.trim().toUpperCase();
+
+    const upperResp = normalizeName(newItemResp);
     const upperItem = itemName.toUpperCase();
     const qtyNum = parseInt(newItemQty) || 1;
+
     try {
-      const existingEntry = additionalItems.find(e => e.item === upperItem && e.resp === upperResp);
+      const existingEntry = additionalItems.find((e) => e.item === upperItem && e.resp === upperResp);
+
       if (editingId && !editingId.toString().startsWith('static-')) {
-        await updateDoc(doc(db, 'extra_items', editingId), { qty: qtyNum, section: section, at: Date.now() });
+        await updateDoc(doc(db, 'extra_items', editingId), { qty: qtyNum, section, at: Date.now() });
       } else if (existingEntry) {
-        await updateDoc(doc(db, 'extra_items', existingEntry.id), { qty: qtyNum, section: section, at: Date.now() });
+        await updateDoc(doc(db, 'extra_items', existingEntry.id), { qty: qtyNum, section, at: Date.now() });
       } else {
-        await addDoc(collection(db, 'extra_items'), { item: upperItem, resp: upperResp, qty: qtyNum, section: section, at: Date.now() });
+        await addDoc(collection(db, 'extra_items'), { item: upperItem, resp: upperResp, qty: qtyNum, section, at: Date.now() });
       }
-      setNewItemResp(''); setNewItemQty(''); setActiveItemTarget(null); setEditingId(null);
-    } catch (e) { console.error(e); }
-    finally { setIsSaving(false); }
+
+      setNewItemResp('');
+      setNewItemQty('');
+      setActiveItemTarget(null);
+      setEditingId(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleRemoveExtraItem = async (idToDelete, respName, itemName) => {
     setIsSaving(true);
-    try { 
-      const upperResp = respName.toUpperCase();
+
+    try {
+      const upperResp = normalizeName(respName);
       const upperItem = itemName.toUpperCase();
+
       if (idToDelete && !idToDelete.toString().startsWith('static-')) {
-        await deleteDoc(doc(db, 'extra_items', idToDelete)); 
+        await deleteDoc(doc(db, 'extra_items', idToDelete));
       }
-      await addDoc(collection(db, 'extra_items'), { item: upperItem, resp: upperResp, qty: -1, section: "removed", at: Date.now() });
-      setActiveItemTarget(null); setEditingId(null);
-    } catch (e) { console.error(e); }
-    finally { setIsSaving(false); }
+
+      await addDoc(collection(db, 'extra_items'), { item: upperItem, resp: upperResp, qty: -1, section: 'removed', at: Date.now() });
+      setActiveItemTarget(null);
+      setEditingId(null);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleAddVote = async () => {
-    if (!tempName.trim() || !user || isSaving) return;
+    if (!tempName.trim() || !selectedDateId || !user || isSaving) return;
     setIsSaving(true);
-    const name = tempName.trim().toUpperCase();
+
+    const name = normalizeName(tempName);
+
     try {
-      await addDoc(collection(db, 'votes'), { userId: user.uid, userName: name, dateId: selectedDateId, at: Date.now() });
-      setIsModalOpen(false); setTempName('');
-    } catch (e) { console.error(e); }
-    finally { setIsSaving(false); }
+      await addDoc(collection(db, 'votes'), {
+        userId: user.uid,
+        userName: name,
+        dateId: selectedDateId,
+        at: Date.now(),
+      });
+
+      setIsModalOpen(false);
+      setTempName('');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleRemoveVote = async (id) => { if (!user) return; try { await deleteDoc(doc(db, 'votes', id)); } catch (e) {} };
-  
+  const handleRemoveVote = async (id) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'votes', id));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const handlePriceUpdate = async (id, val) => {
     if (!user || !isAdmin) return;
-    try { await setDoc(doc(db, 'prices', id), { value: val }); } catch (e) {}
+    try {
+      await setDoc(doc(db, 'prices', id), { value: val });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const updatePayment = async (userName, field, value) => {
     if (!user || !isAdmin) return;
-    const id = userName.toUpperCase();
+    const id = normalizeName(userName);
     const current = payments[id] || { paid: 0, proof: '', updatedAt: 0 };
-    try { await setDoc(doc(db, 'payments', id), { ...current, [field]: value, updatedAt: Date.now() }); } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'payments', id), { ...current, [field]: value, updatedAt: Date.now() });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleSetOfficial = async (id) => {
     if (!user || !isAdmin) return;
     const newId = settings.officialDateId === id ? null : id;
-    try { await setDoc(doc(db, 'settings', 'global'), { officialDateId: newId }); } catch (e) {}
+
+    try {
+      await setDoc(doc(db, 'settings', 'global'), { officialDateId: newId });
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const tryAdminLogin = () => {
-    if (adminInput === ADMIN_PIN) { setIsAdmin(true); localStorage.setItem('obrigacao_admin', 'true'); setIsAdminModalOpen(false); setAdminInput(''); } else { setAdminInput(''); }
+    if (adminInput === ADMIN_PIN) {
+      setIsAdmin(true);
+      localStorage.setItem('obrigacao_admin', 'true');
+      setIsAdminModalOpen(false);
+      setAdminInput('');
+    } else {
+      setAdminInput('');
+    }
   };
 
-  const logoutAdmin = () => { setIsAdmin(false); localStorage.removeItem('obrigacao_admin'); };
+  const logoutAdmin = () => {
+    setIsAdmin(false);
+    localStorage.removeItem('obrigacao_admin');
+  };
 
   const startEdit = (person, item) => {
     setActiveItemTarget(item);
@@ -411,7 +632,6 @@ const App = () => {
     setNewItemQty(person.qty.toString());
   };
 
-  // UI de Loading
   if (loading) {
     return (
       <div className="min-h-screen bg-[#f7f3f0] flex flex-col items-center justify-center p-10 space-y-4">
@@ -424,7 +644,9 @@ const App = () => {
   return (
     <div className="min-h-screen bg-[#f7f3f0] pb-24 font-sans text-stone-900 select-none overflow-x-hidden relative">
       <div className="fixed inset-0 pointer-events-none opacity-[0.03] z-0 flex flex-col justify-around items-center">
-        <Coffee size={300} className="-rotate-12" /> <Wind size={350} className="rotate-12" /> <Leaf size={400} />
+        <Coffee size={300} className="-rotate-12" />
+        <Wind size={350} className="rotate-12" />
+        <Leaf size={400} />
       </div>
 
       <header className="bg-gradient-to-b from-[#2d1b18] to-[#1a0f0d] text-white p-6 pb-14 rounded-b-[3.5rem] shadow-2xl relative z-10 border-b-8 border-black/40">
@@ -434,18 +656,31 @@ const App = () => {
               <Coffee className="text-amber-500 animate-bounce-subtle" size={42} />
             </div>
           </div>
+
           <div>
             <h2 className="text-sm md:text-lg font-bold text-white/80 uppercase tracking-[0.4em] mb-1 transition-all">OBRIGAÇÃO</h2>
             <h1 className="text-4xl md:text-6xl font-black uppercase tracking-[0.05em] leading-none drop-shadow-lg text-amber-500 transition-all">PRETOS VELHOS</h1>
           </div>
+
           <div className="flex items-center justify-center gap-3 mt-4">
-            <div className="h-[2px] w-8 bg-amber-500/40 rounded-full"></div>
+            <div className="h-[2px] w-8 bg-amber-500/40 rounded-full" />
             <p className="text-amber-100/50 font-black text-[10px] md:text-xs tracking-[0.5em] uppercase">ADOREI AS ALMAS</p>
-            <div className="h-[2px] w-8 bg-amber-500/40 rounded-full"></div>
+            <div className="h-[2px] w-8 bg-amber-500/40 rounded-full" />
           </div>
+
           <div className="flex items-center justify-center gap-1 bg-black/30 p-1.5 rounded-[2rem] border border-white/10 w-fit mx-auto backdrop-blur-xl mt-4">
-             <button onClick={() => setView('dashboard')} className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${view === 'dashboard' ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]' : 'text-white/40 hover:text-white'}`}>Dashboard</button>
-             <button onClick={() => setView('finance')} className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${view === 'finance' ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]' : 'text-white/40 hover:text-white'}`}>Financeiro</button>
+            <button
+              onClick={() => setView('dashboard')}
+              className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${view === 'dashboard' ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]' : 'text-white/40 hover:text-white'}`}
+            >
+              Dashboard
+            </button>
+            <button
+              onClick={() => setView('finance')}
+              className={`px-8 py-2.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all duration-300 ${view === 'finance' ? 'bg-amber-600 text-white shadow-[0_0_15px_rgba(217,119,6,0.4)]' : 'text-white/40 hover:text-white'}`}
+            >
+              Financeiro
+            </button>
           </div>
         </div>
       </header>
@@ -453,20 +688,18 @@ const App = () => {
       <main className="max-w-md md:max-w-4xl lg:max-w-6xl mx-auto px-4 -mt-8 space-y-4 relative z-20">
         {view === 'dashboard' && (
           <div className="animate-in fade-in duration-500 space-y-4">
-            
             {!settings.officialDateId && (
               <div className="bg-white/90 backdrop-blur-sm rounded-2xl p-4 shadow-xl border-l-8 border-red-600 flex items-center gap-4 border border-stone-200/50 max-w-xl mx-auto md:max-w-full">
-                <div className="bg-red-50 p-2 rounded-xl text-red-600"><AlertTriangle size={20} className="animate-pulse" /></div>
+                <div className="bg-red-50 p-2 rounded-xl text-red-600">
+                  <AlertTriangle size={20} className="animate-pulse" />
+                </div>
                 <p className="text-[10px] font-black uppercase leading-tight text-stone-900 tracking-tight">
                   CONFIRMAÇÃO ATÉ <span className="text-red-600">10/05</span>. SEM A LISTA FECHADA, O PAI DE SANTO NÃO REALIZARÁ A OBRIGAÇÃO.
                 </p>
               </div>
             )}
 
-            {/* Layout dividido em duas colunas no PC para os cards de topo */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
-              
-              {/* Coluna 1: Caixa e Data Oficial */}
               <div className="space-y-4 flex flex-col">
                 {settings.officialDateId && (
                   <div className="bg-[#3e2723] text-white rounded-[2.5rem] p-6 shadow-2xl flex items-center justify-between border-b-8 border-black ring-1 ring-white/10">
@@ -476,12 +709,12 @@ const App = () => {
                       </div>
                       <div>
                         <p className="text-[8px] font-black uppercase opacity-60 tracking-[0.3em] text-amber-100 mb-1">DATA OFICIAL CONFIRMADA</p>
-                        <p className="text-xl md:text-2xl font-black uppercase text-amber-400 leading-none">{dateOptions.find(d => d.id === settings.officialDateId)?.label}</p>
+                        <p className="text-xl md:text-2xl font-black uppercase text-amber-400 leading-none">{dateOptions.find((d) => d.id === settings.officialDateId)?.label}</p>
                       </div>
                     </div>
                   </div>
                 )}
-                
+
                 <div className="bg-[#1a1a1a] text-white rounded-[2.5rem] p-6 shadow-2xl border-b-8 border-black relative overflow-hidden ring-1 ring-white/10 flex-1 flex flex-col justify-center">
                   <Calculator className="absolute -right-6 -bottom-6 text-white/5 pointer-events-none" size={160} />
                   <div className="relative z-10 space-y-6">
@@ -491,18 +724,18 @@ const App = () => {
                       </h3>
                       <div className="bg-white/10 px-4 py-2 rounded-2xl text-[10px] font-black uppercase flex items-center gap-2 border border-white/5">
                         <Users2 size={12} className="text-stone-400" />
-                        <span>{totalParticipants} PESSOAS</span>
+                        <span>{totalQuotaParticipants} NA COTA</span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div className="bg-black/40 p-4 rounded-3xl border border-white/5 shadow-inner">
-                         <p className="text-[8px] uppercase font-black text-stone-500 mb-1 tracking-widest">TOTAL MATERIAIS</p>
-                         <p className="text-xl md:text-2xl font-black text-amber-100">{formatCurrency(totalCost)}</p>
+                        <p className="text-[8px] uppercase font-black text-stone-500 mb-1 tracking-widest">TOTAL MATERIAIS</p>
+                        <p className="text-xl md:text-2xl font-black text-amber-100">{formatCurrency(totalCost)}</p>
                       </div>
                       <div className="bg-amber-600 p-4 rounded-3xl border-b-4 border-amber-900 shadow-lg">
-                         <p className="text-[8px] font-black text-black/60 uppercase tracking-widest mb-1">COTA P/ PESSOA</p>
-                         <p className="text-xl md:text-2xl font-black text-black leading-none">{formatCurrency(costPerPerson)}</p>
+                        <p className="text-[8px] font-black text-black/60 uppercase tracking-widest mb-1">COTA P/ PESSOA</p>
+                        <p className="text-xl md:text-2xl font-black text-black leading-none">{formatCurrency(costPerPerson)}</p>
                       </div>
                     </div>
 
@@ -512,7 +745,7 @@ const App = () => {
                         <span className="text-[10px] font-black text-amber-500">{percentCollected.toFixed(0)}%</span>
                       </div>
                       <div className="w-full h-3 bg-black/40 rounded-full overflow-hidden border border-white/5">
-                        <div className="h-full bg-amber-600 transition-all duration-1000" style={{ width: `${percentCollected}%` }}></div>
+                        <div className="h-full bg-amber-600 transition-all duration-1000" style={{ width: `${percentCollected}%` }} />
                       </div>
                     </div>
 
@@ -530,36 +763,49 @@ const App = () => {
                 </div>
               </div>
 
-              {/* Coluna 2: Presença e Partilha */}
               <div className="space-y-4 flex flex-col">
                 <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-stone-200">
                   <div className="flex items-center justify-between mb-5 pb-2 border-b-2 border-stone-50">
-                    <div className="flex items-center gap-2 text-[#3e2723]"><Users2 size={18} /><h3 className="font-black uppercase text-[10px] tracking-widest">PRESENÇA</h3></div>
-                    <button onClick={() => isAdmin ? logoutAdmin() : setIsAdminModalOpen(true)} className={`p-2 rounded-xl transition-all ${isAdmin ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-200 hover:text-stone-400'}`}>
+                    <div className="flex items-center gap-2 text-[#3e2723]">
+                      <Users2 size={18} />
+                      <h3 className="font-black uppercase text-[10px] tracking-widest">PRESENÇA</h3>
+                    </div>
+                    <button onClick={() => (isAdmin ? logoutAdmin() : setIsAdminModalOpen(true))} className={`p-2 rounded-xl transition-all ${isAdmin ? 'bg-amber-600 text-white shadow-lg' : 'text-stone-200 hover:text-stone-400'}`}>
                       {isAdmin ? <Unlock size={16} /> : <Crown size={16} />}
                     </button>
                   </div>
+
                   <div className="space-y-3">
-                    {dateOptions.map(date => {
-                      const dVotes = votes.filter(v => v.dateId === date.id).sort((a,b)=>a.userName.localeCompare(b.userName));
+                    {dateOptions.map((date) => {
+                      const dVotes = votes.filter((v) => v.dateId === date.id).sort((a, b) => normalizeName(a.userName).localeCompare(normalizeName(b.userName)));
                       const isOfficial = settings.officialDateId === date.id;
+
                       return (
                         <div key={date.id} className={`rounded-[1.5rem] border-2 transition-all p-3 ${isOfficial ? 'border-amber-500 bg-amber-50/30' : 'border-stone-50 bg-stone-50/50'}`}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
-                              <div className={`p-3 rounded-2xl ${date.color} text-white shadow-lg`}><Clock size={16} /></div>
+                              <div className={`p-3 rounded-2xl ${date.color} text-white shadow-lg`}>
+                                <Clock size={16} />
+                              </div>
                               <p className="font-black text-stone-900 text-sm uppercase leading-none">
                                 {date.label} <span className="text-amber-600 ml-1">({dVotes.length})</span>
                               </p>
                             </div>
                             <div className="flex gap-2">
-                              {isAdmin && <button onClick={() => handleSetOfficial(date.id)} className={`p-2 rounded-xl transition-all ${isOfficial ? 'bg-amber-600 text-white' : 'bg-white border border-stone-200 text-stone-300'}`}><CheckCircle size={20} /></button>}
-                              <button onClick={() => { setSelectedDateId(date.id); setIsModalOpen(true); }} className="p-2.5 bg-white shadow-lg border border-stone-200 rounded-xl active:scale-90 transition-all shadow-amber-900/10"><Plus size={20} className="text-[#3e2723]" /></button>
+                              {isAdmin && (
+                                <button onClick={() => handleSetOfficial(date.id)} className={`p-2 rounded-xl transition-all ${isOfficial ? 'bg-amber-600 text-white' : 'bg-white border border-stone-200 text-stone-300'}`}>
+                                  <CheckCircle size={20} />
+                                </button>
+                              )}
+                              <button onClick={() => { setSelectedDateId(date.id); setIsModalOpen(true); }} className="p-2.5 bg-white shadow-lg border border-stone-200 rounded-xl active:scale-90 transition-all shadow-amber-900/10">
+                                <Plus size={20} className="text-[#3e2723]" />
+                              </button>
                             </div>
                           </div>
+
                           {dVotes.length > 0 && (
                             <div className="flex flex-wrap gap-1.5 pt-2 border-t border-stone-200/40">
-                              {dVotes.map(v => (
+                              {dVotes.map((v) => (
                                 <div key={v.id} className="bg-white px-2 py-1 rounded-xl border border-stone-200 text-[8px] font-black text-[#3e2723] uppercase flex items-center gap-1 shadow-sm">
                                   <Heart size={8} className="text-red-500 fill-red-500" /> {String(v.userName)}
                                   {(v.userId === user?.uid || isAdmin) && <XCircle size={12} className="text-stone-300 ml-1 cursor-pointer hover:text-red-600" onClick={() => handleRemoveVote(v.id)} />}
@@ -574,76 +820,123 @@ const App = () => {
                 </div>
 
                 <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-stone-200 flex-1">
-                  <div className="flex items-center gap-2 mb-5 text-green-700 font-black uppercase text-[10px] tracking-widest leading-none"><Leaf size={18} /> MATERIAIS DA PARTILHA</div>
+                  <div className="flex items-center gap-2 mb-5 text-green-700 font-black uppercase text-[10px] tracking-widest leading-none">
+                    <Leaf size={18} /> MATERIAIS DA PARTILHA
+                  </div>
                   <div className="space-y-2">
                     {staticData.ervas.map((herb) => (
                       <div key={herb.id} className="p-3 rounded-2xl bg-stone-50 border border-stone-100 flex items-center justify-between group hover:bg-white transition-all">
-                        <div className="flex items-center gap-3"><ItemIcon emoji={herb.emoji} /><p className="font-black text-stone-800 text-[10px] uppercase tracking-tighter">{herb.item}</p></div>
+                        <div className="flex items-center gap-3">
+                          <ItemIcon emoji={herb.emoji} />
+                          <p className="font-black text-stone-800 text-[10px] uppercase tracking-tighter">{herb.item}</p>
+                        </div>
                         <CurrencyInput initialValue={prices[herb.id]} onSave={(val) => handlePriceUpdate(herb.id, val)} isAdmin={isAdmin} isCompact={true} />
                       </div>
                     ))}
                   </div>
                 </div>
               </div>
-
             </div>
 
             <div className="relative group max-w-2xl mx-auto my-8">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400 group-focus-within:text-amber-600 transition-colors" size={20} />
-              <input type="text" placeholder="BUSCAR ITEM OU RESPONSÁVEL..." className="w-full bg-white border-2 border-stone-200 rounded-2xl py-4 pl-12 pr-6 shadow-xl outline-none focus:border-amber-400 text-[10px] font-black uppercase tracking-widest transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              <input
+                type="text"
+                placeholder="BUSCAR ITEM OU RESPONSÁVEL..."
+                className="w-full bg-white border-2 border-stone-200 rounded-2xl py-4 pl-12 pr-6 shadow-xl outline-none focus:border-amber-400 text-[10px] font-black uppercase tracking-widest transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
 
             <div className="space-y-8 pb-8">
-              <Section 
-                title="MESA DE COMIDAS" 
-                items={filteredItems.comidas} 
-                icon={ChefHat} color="text-amber-900" bgColor="bg-amber-100" 
-                isResource onEdit={startEdit} 
-                activeItemTarget={activeItemTarget} setActiveItemTarget={setActiveItemTarget} 
-                editingId={editingId} setEditingId={setEditingId} 
-                newItemResp={newItemResp} setNewItemResp={setNewItemResp} 
-                newItemQty={newItemQty} setNewItemQty={setNewItemQty} 
-                handleSave={handleSaveResourceEntry} handleDelete={handleRemoveExtraItem} 
-                isSaving={isSaving} isAdmin={isAdmin} hideQty={true} 
-              />
-              
-              <Section 
-                title="CAFÉ E BEBIDAS" 
-                icon={Coffee} 
-                items={filteredItems.bebidas} color="text-[#3e2723]" bgColor="bg-stone-200" 
-                isResource onEdit={startEdit} 
-                activeItemTarget={activeItemTarget} setActiveItemTarget={setActiveItemTarget} 
-                editingId={editingId} setEditingId={setEditingId} 
-                newItemResp={newItemResp} setNewItemResp={setNewItemResp} 
-                newItemQty={newItemQty} setNewItemQty={setNewItemQty} 
-                handleSave={handleSaveResourceEntry} handleDelete={handleRemoveExtraItem} 
-                isSaving={isSaving} isAdmin={isAdmin} 
+              <Section
+                title="MESA DE COMIDAS"
+                items={filteredItems.comidas}
+                icon={ChefHat}
+                color="text-amber-900"
+                bgColor="bg-amber-100"
+                isResource
+                onEdit={startEdit}
+                activeItemTarget={activeItemTarget}
+                setActiveItemTarget={setActiveItemTarget}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                newItemResp={newItemResp}
+                setNewItemResp={setNewItemResp}
+                newItemQty={newItemQty}
+                setNewItemQty={setNewItemQty}
+                handleSave={handleSaveResourceEntry}
+                handleDelete={handleRemoveExtraItem}
+                isSaving={isSaving}
+                isAdmin={isAdmin}
+                hideQty={true}
               />
 
-              <Section 
-                title="VELAS DE SÉTIMO DIA" 
-                icon={Flame} 
-                items={filteredItems.velas} color="text-orange-900" bgColor="bg-orange-50" 
-                isResource onEdit={startEdit} 
-                activeItemTarget={activeItemTarget} setActiveItemTarget={setActiveItemTarget} 
-                editingId={editingId} setEditingId={setEditingId} 
-                newItemResp={newItemResp} setNewItemResp={setNewItemResp} 
-                newItemQty={newItemQty} setNewItemQty={setNewItemQty} 
-                handleSave={handleSaveResourceEntry} handleDelete={handleRemoveExtraItem} 
-                isSaving={isSaving} isAdmin={isAdmin} 
+              <Section
+                title="CAFÉ E BEBIDAS"
+                icon={Coffee}
+                items={filteredItems.bebidas}
+                color="text-[#3e2723]"
+                bgColor="bg-stone-200"
+                isResource
+                onEdit={startEdit}
+                activeItemTarget={activeItemTarget}
+                setActiveItemTarget={setActiveItemTarget}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                newItemResp={newItemResp}
+                setNewItemResp={setNewItemResp}
+                newItemQty={newItemQty}
+                setNewItemQty={setNewItemQty}
+                handleSave={handleSaveResourceEntry}
+                handleDelete={handleRemoveExtraItem}
+                isSaving={isSaving}
+                isAdmin={isAdmin}
               />
 
-              <Section 
-                title="FUNDAMENTOS DE EXU ONAN E CATIÇO" 
-                items={filteredItems.fundamento} 
-                icon={Sparkles} color="text-red-900" bgColor="bg-red-50" 
-                isResource onEdit={startEdit} 
-                activeItemTarget={activeItemTarget} setActiveItemTarget={setActiveItemTarget} 
-                editingId={editingId} setEditingId={setEditingId} 
-                newItemResp={newItemResp} setNewItemResp={setNewItemResp} 
-                newItemQty={newItemQty} setNewItemQty={setNewItemQty} 
-                handleSave={handleSaveResourceEntry} handleDelete={handleRemoveExtraItem} 
-                isSaving={isSaving} isAdmin={isAdmin} 
+              <Section
+                title="VELAS DE SÉTIMO DIA"
+                icon={Flame}
+                items={filteredItems.velas}
+                color="text-orange-900"
+                bgColor="bg-orange-50"
+                isResource
+                onEdit={startEdit}
+                activeItemTarget={activeItemTarget}
+                setActiveItemTarget={setActiveItemTarget}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                newItemResp={newItemResp}
+                setNewItemResp={setNewItemResp}
+                newItemQty={newItemQty}
+                setNewItemQty={setNewItemQty}
+                handleSave={handleSaveResourceEntry}
+                handleDelete={handleRemoveExtraItem}
+                isSaving={isSaving}
+                isAdmin={isAdmin}
+              />
+
+              <Section
+                title="FUNDAMENTOS DE EXU ONAN E CATIÇO"
+                items={filteredItems.fundamento}
+                icon={Sparkles}
+                color="text-red-900"
+                bgColor="bg-red-50"
+                isResource
+                onEdit={startEdit}
+                activeItemTarget={activeItemTarget}
+                setActiveItemTarget={setActiveItemTarget}
+                editingId={editingId}
+                setEditingId={setEditingId}
+                newItemResp={newItemResp}
+                setNewItemResp={setNewItemResp}
+                newItemQty={newItemQty}
+                setNewItemQty={setNewItemQty}
+                handleSave={handleSaveResourceEntry}
+                handleDelete={handleRemoveExtraItem}
+                isSaving={isSaving}
+                isAdmin={isAdmin}
               />
             </div>
           </div>
@@ -654,12 +947,16 @@ const App = () => {
             <div className="bg-white rounded-[2rem] p-6 shadow-xl border border-stone-200">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 pb-4 border-b-2 border-stone-50">
                 <div className="flex items-center gap-3">
-                  <div className="p-3 bg-amber-600 rounded-2xl text-white shadow-lg shadow-amber-600/20"><ListChecks size={22} /></div>
+                  <div className="p-3 bg-amber-600 rounded-2xl text-white shadow-lg shadow-amber-600/20">
+                    <ListChecks size={22} />
+                  </div>
                   <div>
                     <h2 className="text-lg md:text-xl font-black text-stone-900 uppercase tracking-tighter leading-none">Contribuições</h2>
                     <p className="text-[9px] md:text-[10px] font-bold text-stone-400 uppercase tracking-widest mt-1">Cota por pessoa: {formatCurrency(costPerPerson)}</p>
+                    <p className="text-[8px] font-bold text-amber-600 uppercase tracking-widest mt-1">Na cota: {totalQuotaParticipants} • Presença total: {totalParticipants}</p>
                   </div>
                 </div>
+
                 {!isAdmin && (
                   <div className="flex items-center gap-2 bg-stone-50 px-4 py-2 rounded-xl border border-stone-100 self-start md:self-auto">
                     <Lock size={14} className="text-amber-600" />
@@ -667,32 +964,60 @@ const App = () => {
                   </div>
                 )}
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 items-start">
-                {participantsList.length === 0 && (
+                {quotaParticipantsList.length === 0 && (
                   <div className="col-span-full p-10 text-center text-stone-300 italic text-[10px] uppercase font-black tracking-widest">
-                    Ninguém confirmou presença ainda.
+                    Ninguém entrou na cota ainda.
                   </div>
                 )}
-                {participantsList.map(name => {
+
+                {quotaParticipantsList.map((name) => {
                   const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
                   const isFullyPaid = costPerPerson > 0 && pay.paid >= costPerPerson;
                   const balance = costPerPerson > 0 ? Math.max(0, costPerPerson - pay.paid) : 0;
                   const statusColor = isFullyPaid ? 'text-green-600 bg-green-50 border-green-100' : pay.paid > 0 ? 'text-amber-600 bg-amber-50 border-amber-100' : 'text-red-600 bg-red-50 border-red-100';
+
                   return (
                     <div key={name} className="p-4 rounded-[2rem] bg-stone-50 border border-stone-100 space-y-3 shadow-sm hover:shadow-md transition-all h-fit">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3"><div className="p-2 bg-white rounded-2xl shadow-sm"><Heart size={14} className="text-red-500 fill-red-500/10" /></div><p className="text-xs font-black text-stone-900 uppercase tracking-tight">{String(name)}</p></div>
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-white rounded-2xl shadow-sm">
+                            <Heart size={14} className="text-red-500 fill-red-500/10" />
+                          </div>
+                          <p className="text-xs font-black text-stone-900 uppercase tracking-tight">{String(name)}</p>
+                        </div>
                         <span className={`text-[8px] font-black px-3 py-1.5 rounded-full border shadow-sm ${statusColor}`}>{isFullyPaid ? 'PAGO' : 'PENDENTE'}</span>
                       </div>
+
                       <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1.5"><label className="text-[7px] font-black text-stone-400 uppercase tracking-widest ml-3">VALOR PAGO</label><CurrencyInput initialValue={pay.paid} onSave={(val) => updatePayment(name, 'paid', val)} isAdmin={isAdmin} /></div>
-                        <div className="space-y-1.5"><label className="text-[7px] font-black text-stone-400 uppercase tracking-widest ml-3">PENDÊNCIA</label><div className={`p-2.5 rounded-2xl border font-black text-[11px] text-center flex items-center justify-center h-[42px] ${isFullyPaid ? 'bg-green-50 text-green-600 border-green-100 shadow-sm' : 'bg-white text-red-600 border-stone-200 shadow-inner'}`}>{isFullyPaid ? 'QUITADO' : formatCurrency(balance)}</div></div>
+                        <div className="space-y-1.5">
+                          <label className="text-[7px] font-black text-stone-400 uppercase tracking-widest ml-3">VALOR PAGO</label>
+                          <CurrencyInput initialValue={pay.paid} onSave={(val) => updatePayment(name, 'paid', val)} isAdmin={isAdmin} />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[7px] font-black text-stone-400 uppercase tracking-widest ml-3">PENDÊNCIA</label>
+                          <div className={`p-2.5 rounded-2xl border font-black text-[11px] text-center flex items-center justify-center h-[42px] ${isFullyPaid ? 'bg-green-50 text-green-600 border-green-100 shadow-sm' : 'bg-white text-red-600 border-stone-200 shadow-inner'}`}>
+                            {isFullyPaid ? 'QUITADO' : formatCurrency(balance)}
+                          </div>
+                        </div>
                       </div>
+
                       <div className="flex items-center gap-2 rounded-2xl p-2.5 border bg-white border-stone-200 shadow-inner group transition-all">
                         <FileText size={14} className="text-stone-300" />
-                        <input type="text" placeholder="LINK DO COMPROVANTE" className="w-full bg-transparent outline-none font-bold text-[9px] text-stone-600 placeholder:opacity-20 uppercase" value={String(pay.proof || '')} onChange={(e) => updatePayment(name, 'proof', e.target.value)} disabled={!isAdmin} />
-                        {pay.proof && <a href={pay.proof} target="_blank" rel="noreferrer" className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:scale-110 transition-transform"><ExternalLink size={14} /></a>}
+                        <input
+                          type="text"
+                          placeholder="LINK DO COMPROVANTE"
+                          className="w-full bg-transparent outline-none font-bold text-[9px] text-stone-600 placeholder:opacity-20 uppercase"
+                          value={String(pay.proof || '')}
+                          onChange={(e) => updatePayment(name, 'proof', e.target.value)}
+                          disabled={!isAdmin}
+                        />
+                        {pay.proof && (
+                          <a href={pay.proof} target="_blank" rel="noreferrer" className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:scale-110 transition-transform">
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   );
@@ -701,7 +1026,7 @@ const App = () => {
 
               {isAdmin && (
                 <div className="mt-8 pt-6 border-t border-stone-100 flex justify-center">
-                  <button 
+                  <button
                     onClick={() => setIsReportOpen(true)}
                     className="flex items-center gap-3 bg-amber-600 text-white px-8 py-4 rounded-3xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-amber-700 active:scale-95 transition-all border-b-4 border-amber-900"
                   >
@@ -715,7 +1040,11 @@ const App = () => {
         )}
 
         <div className="py-8 flex flex-col items-center gap-4 opacity-20 text-[#3e2723]">
-          <div className="flex gap-6"><Coffee size={24} /><Wind size={24} /><Leaf size={24} /></div>
+          <div className="flex gap-6">
+            <Coffee size={24} />
+            <Wind size={24} />
+            <Leaf size={24} />
+          </div>
           <div className="flex flex-col items-center gap-1 text-center">
             <p className="text-[8px] font-black tracking-[0.8em] uppercase">SARAVÁ PRETOS VELHOS</p>
             <p className="text-[9px] font-bold tracking-widest uppercase mt-1">Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú</p>
@@ -724,51 +1053,75 @@ const App = () => {
         </div>
       </main>
 
-      {/* MODAL ADMIN */}
       {isAdminModalOpen && (
         <div className="fixed inset-0 z-[400] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
           <div className="bg-white w-full max-w-sm rounded-[3rem] p-10 shadow-2xl border-t-[10px] border-amber-600 animate-in zoom-in-95">
             <h3 className="text-2xl font-black text-stone-900 mb-2 uppercase text-center tracking-tighter">Modo ADM</h3>
-            <input type="password" placeholder="••••" autoFocus className="w-full border-2 border-stone-100 rounded-2xl py-5 px-6 mb-6 outline-none focus:border-amber-600 font-black text-center bg-stone-50 text-stone-900 text-2xl tracking-[0.5em]" value={adminInput} onChange={(e) => setAdminInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && tryAdminLogin()} />
-            <button onClick={tryAdminLogin} className="w-full bg-amber-600 text-white rounded-2xl py-5 font-black text-xs uppercase tracking-[0.2em] shadow-xl">Autenticar</button>
-            <button onClick={() => setIsAdminModalOpen(false)} className="w-full py-2 mt-2 text-stone-300 font-black text-[9px] uppercase tracking-widest">Cancelar</button>
+            <input
+              type="password"
+              placeholder="••••"
+              autoFocus
+              className="w-full border-2 border-stone-100 rounded-2xl py-5 px-6 mb-6 outline-none focus:border-amber-600 font-black text-center bg-stone-50 text-stone-900 text-2xl tracking-[0.5em]"
+              value={adminInput}
+              onChange={(e) => setAdminInput(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && tryAdminLogin()}
+            />
+            <button onClick={tryAdminLogin} className="w-full bg-amber-600 text-white rounded-2xl py-5 font-black text-xs uppercase tracking-[0.2em] shadow-xl">
+              Autenticar
+            </button>
+            <button onClick={() => setIsAdminModalOpen(false)} className="w-full py-2 mt-2 text-stone-300 font-black text-[9px] uppercase tracking-widest">
+              Cancelar
+            </button>
           </div>
         </div>
       )}
 
-      {/* MODAL PRESENÇA */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[300] flex items-center justify-center p-6 bg-stone-950/95 backdrop-blur-xl">
           <div className="bg-white w-full max-w-sm rounded-[4rem] p-10 shadow-2xl border-t-[14px] border-[#3e2723] animate-in zoom-in-95">
             <h3 className="text-3xl font-black text-stone-900 mb-8 uppercase text-center tracking-tighter">Confirmar</h3>
-            <input type="text" placeholder="DIGITE SEU NOME" className="w-full border-2 border-stone-100 rounded-[2.5rem] py-6 px-8 mb-8 outline-none focus:border-amber-600 font-black text-center bg-stone-50 text-stone-900 text-lg uppercase shadow-inner" value={tempName} onChange={(e) => setTempName(e.target.value)} />
-            <button onClick={handleAddVote} disabled={!tempName.trim() || isSaving} className="w-full bg-[#3e2723] text-white rounded-[2.5rem] py-6 font-black text-xs uppercase tracking-[0.3em] shadow-xl border-b-4 border-black">{isSaving ? <Loader2 className="animate-spin mx-auto" size={24} /> : 'Confirmar Presença'}</button>
-            <button onClick={() => setIsModalOpen(false)} className="w-full py-2 mt-2 text-stone-300 font-black text-[9px] uppercase tracking-widest">Fechar</button>
+            <input
+              type="text"
+              placeholder="DIGITE SEU NOME"
+              className="w-full border-2 border-stone-100 rounded-[2.5rem] py-6 px-8 mb-8 outline-none focus:border-amber-600 font-black text-center bg-stone-50 text-stone-900 text-lg uppercase shadow-inner"
+              value={tempName}
+              onChange={(e) => setTempName(e.target.value)}
+            />
+            <button onClick={handleAddVote} disabled={!tempName.trim() || isSaving} className="w-full bg-[#3e2723] text-white rounded-[2.5rem] py-6 font-black text-xs uppercase tracking-[0.3em] shadow-xl border-b-4 border-black">
+              {isSaving ? <Loader2 className="animate-spin mx-auto" size={24} /> : 'Confirmar Presença'}
+            </button>
+            <button onClick={() => setIsModalOpen(false)} className="w-full py-2 mt-2 text-stone-300 font-black text-[9px] uppercase tracking-widest">
+              Fechar
+            </button>
           </div>
         </div>
       )}
 
-      {/* MODAL FORM ITEM */}
       {activeItemTarget && (
         <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 bg-black/70 backdrop-blur-md">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border-t-8 border-amber-600">
             <h4 className="font-black uppercase text-[10px] mb-4 text-stone-900 tracking-widest">Responsável: {String(activeItemTarget)}</h4>
             <div className="space-y-4">
-               <input type="text" placeholder="QUEM TRAZ?" className="w-full p-4 bg-stone-50 border rounded-xl font-black uppercase text-xs shadow-inner" value={newItemResp} onChange={e => setNewItemResp(e.target.value)} disabled={!!editingId} />
-               <input type="number" placeholder="QTD" className="w-full p-4 bg-stone-50 border rounded-xl font-black text-xs shadow-inner" value={newItemQty} onChange={e => setNewItemQty(e.target.value)} />
-               <div className="flex gap-2">
-                 <button onClick={() => handleSaveResourceEntry(activeItemTarget, 'Geral')} className="flex-1 bg-stone-900 text-white py-4 rounded-xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">{isSaving ? '...' : 'Salvar'}</button>
-                 <button onClick={() => {setActiveItemTarget(null); setEditingId(null); setNewItemResp('');}} className="px-4 font-black uppercase text-[10px] text-stone-400">Voltar</button>
-               </div>
-               {editingId && !editingId.toString().startsWith('static-') && (
-                  <button onClick={() => handleRemoveExtraItem(editingId, newItemResp, activeItemTarget)} className="w-full bg-red-50 text-red-600 py-2 rounded-lg text-[9px] font-black uppercase border border-red-100 shadow-sm active:bg-red-100 transition-all">Eliminar Registro</button>
-               )}
+              <input type="text" placeholder="QUEM TRAZ?" className="w-full p-4 bg-stone-50 border rounded-xl font-black uppercase text-xs shadow-inner" value={newItemResp} onChange={(e) => setNewItemResp(e.target.value)} disabled={!!editingId} />
+              <input type="number" placeholder="QTD" className="w-full p-4 bg-stone-50 border rounded-xl font-black text-xs shadow-inner" value={newItemQty} onChange={(e) => setNewItemQty(e.target.value)} />
+              <div className="flex gap-2">
+                <button onClick={() => handleSaveResourceEntry(activeItemTarget, 'Geral')} className="flex-1 bg-stone-900 text-white py-4 rounded-xl font-black text-[10px] uppercase shadow-xl active:scale-95 transition-all">
+                  {isSaving ? '...' : 'Salvar'}
+                </button>
+                <button onClick={() => { setActiveItemTarget(null); setEditingId(null); setNewItemResp(''); }} className="px-4 font-black uppercase text-[10px] text-stone-400">
+                  Voltar
+                </button>
+              </div>
+              {editingId && !editingId.toString().startsWith('static-') && (
+                <button onClick={() => handleRemoveExtraItem(editingId, newItemResp, activeItemTarget)} className="w-full bg-red-50 text-red-600 py-2 rounded-lg text-[9px] font-black uppercase border border-red-100 shadow-sm active:bg-red-100 transition-all">
+                  Eliminar Registro
+                </button>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL RELATÓRIO FINAL */}
       {isReportOpen && (
         <div className="fixed inset-0 z-[700] flex items-center justify-center p-4 bg-stone-900/90 backdrop-blur-md">
           <div className="bg-white w-full max-w-lg md:max-w-3xl h-[85vh] md:h-[80vh] rounded-[3rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
@@ -778,23 +1131,23 @@ const App = () => {
                 <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest">Obrigação Pretos Velhos</p>
               </div>
               <div className="flex gap-2">
-                <button 
-                  onClick={handleGeneratePDF}
-                  className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
-                >
+                <button onClick={handleGeneratePDF} className="flex items-center gap-2 bg-amber-600 text-white px-4 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg active:scale-95 transition-all">
                   <FileDown size={14} />
                   Gerar PDF
                 </button>
-                <button onClick={() => setIsReportOpen(false)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100"><X size={18} /></button>
+                <button onClick={() => setIsReportOpen(false)} className="p-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100">
+                  <X size={18} />
+                </button>
               </div>
             </div>
             <div id="report-content" className="flex-1 overflow-y-auto p-8 font-mono text-[11px] text-stone-800 leading-relaxed whitespace-pre-wrap select-text bg-white">
               {reportText}
             </div>
             <div className="p-4 border-t border-stone-50 bg-stone-50/50 flex flex-col items-center">
-              <div className="w-32 h-[1px] bg-stone-300 mb-2"></div>
+              <div className="w-32 h-[1px] bg-stone-300 mb-2" />
               <p className="text-[8px] font-black text-stone-500 uppercase tracking-widest text-center">
-                Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú<br/>
+                Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú
+                <br />
                 Bàbálórìṣà Geraldo Nunes da Rocha
               </p>
             </div>
@@ -806,15 +1159,35 @@ const App = () => {
 };
 
 // Componente que desenha as secções de itens
-const Section = ({ title, items, icon: Icon, color, bgColor, isResource, onEdit, activeItemTarget, setActiveItemTarget, editingId, setEditingId, newItemResp, setNewItemResp, newItemQty, setNewItemQty, handleSave, handleDelete, isSaving, isAdmin, hideQty }) => (
+const Section = ({
+  title,
+  items,
+  icon: Icon,
+  color,
+  bgColor,
+  isResource,
+  onEdit,
+  activeItemTarget,
+  setActiveItemTarget,
+  editingId,
+  setEditingId,
+  newItemResp,
+  setNewItemResp,
+  newItemQty,
+  setNewItemQty,
+  handleSave,
+  handleDelete,
+  isSaving,
+  isAdmin,
+  hideQty,
+}) => (
   items.length > 0 && (
     <div className="mb-8 w-full">
       <div className={`flex items-center gap-3 mb-6 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90`}>
         <Icon size={18} />
         <h2 className="text-[10px] font-black uppercase tracking-widest leading-none">{title}</h2>
       </div>
-      
-      {/* GRID DE ITENS - 1 coluna no mobile, 2 no tablet, 3 no PC grande */}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {items.map((i, idx) => (
           <div key={idx} className="p-4 rounded-[2rem] bg-white border border-stone-200 shadow-xl hover:shadow-2xl group hover:border-amber-200 transition-all flex flex-col justify-between">
@@ -827,29 +1200,53 @@ const Section = ({ title, items, icon: Icon, color, bgColor, isResource, onEdit,
                     {isResource && !hideQty && <p className="text-[8px] font-black text-amber-600 leading-none mt-1 uppercase tracking-widest">TOTAL: {i.total}</p>}
                   </div>
                 </div>
+
                 {isResource && (
-                  <button onClick={() => isAdmin && (setActiveItemTarget(activeItemTarget === i.item ? null : i.item), setEditingId(null), setNewItemResp(''), setNewItemQty(''))} className={`p-2 rounded-xl transition-all shadow-md shrink-0 ml-2 border-b-2 ${isAdmin ? 'bg-[#3e2723] text-white active:scale-90 border-black shadow-amber-900/20' : 'bg-stone-50 text-stone-300 cursor-not-allowed'}`}>
+                  <button
+                    onClick={() => isAdmin && (setActiveItemTarget(activeItemTarget === i.item ? null : i.item), setEditingId(null), setNewItemResp(''), setNewItemQty(''))}
+                    className={`p-2 rounded-xl transition-all shadow-md shrink-0 ml-2 border-b-2 ${isAdmin ? 'bg-[#3e2723] text-white active:scale-90 border-black shadow-amber-900/20' : 'bg-stone-50 text-stone-300 cursor-not-allowed'}`}
+                  >
                     {isAdmin ? <PlusCircle size={18} /> : <Lock size={18} />}
                   </button>
                 )}
               </div>
+
               <div className="pt-2 border-t border-stone-50/80">
                 <p className="text-[7px] font-black uppercase text-stone-300 tracking-widest mb-2 leading-none">RESPONSÁVEL(S)</p>
                 <div className="flex flex-wrap gap-1.5">
                   {i.people.map((p, pIdx) => (
                     <div key={pIdx} className="bg-stone-50 border border-stone-100 px-2.5 py-1.5 rounded-xl flex items-center gap-2 shadow-sm border-b-2">
-                      <p className="text-[9px] font-bold text-[#3e2723] uppercase">{String(p.name)} {!hideQty && <span className="text-amber-600 font-black ml-0.5">({p.qty})</span>}</p>
-                      {isAdmin && <button onClick={() => onEdit(p, i.item)} className="p-0.5 text-stone-300 hover:text-amber-700 transition-colors"><Pencil size={10} /></button>}
+                      <p className="text-[9px] font-bold text-[#3e2723] uppercase">
+                        {String(p.name)} {!hideQty && <span className="text-amber-600 font-black ml-0.5">({p.qty})</span>}
+                      </p>
+                      {isAdmin && (
+                        <button onClick={() => onEdit(p, i.item)} className="p-0.5 text-stone-300 hover:text-amber-700 transition-colors">
+                          <Pencil size={10} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-            
-            {/* Formulário integrado dentro do Grid card */}
+
             {isResource && isAdmin && activeItemTarget === i.item && (
               <div className="border-t border-stone-100/80 mt-2">
-                <ResourceForm itemName={i.item} newItemResp={newItemResp} setNewItemResp={setNewItemResp} newItemQty={newItemQty} setNewItemQty={setNewItemQty} onConfirm={(name) => handleSave(name, title)} onCancel={() => { setActiveItemTarget(null); setEditingId(null); }} onDelete={handleDelete} isSaving={isSaving} isEditing={!!editingId} editingId={editingId} sectionLabel={title} hideQty={hideQty} />
+                <ResourceForm
+                  itemName={i.item}
+                  newItemResp={newItemResp}
+                  setNewItemResp={setNewItemResp}
+                  newItemQty={newItemQty}
+                  setNewItemQty={setNewItemQty}
+                  onConfirm={(name) => handleSave(name, title)}
+                  onCancel={() => { setActiveItemTarget(null); setEditingId(null); }}
+                  onDelete={handleDelete}
+                  isSaving={isSaving}
+                  isEditing={!!editingId}
+                  editingId={editingId}
+                  sectionLabel={title}
+                  hideQty={hideQty}
+                />
               </div>
             )}
           </div>
