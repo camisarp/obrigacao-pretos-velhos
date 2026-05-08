@@ -1,63 +1,51 @@
 import { useEffect, useState } from 'react';
-import { PlusCircle, X } from 'lucide-react';
+import { FolderPlus, X } from 'lucide-react';
 
-type ResourceSectionOption = {
-  title: string;
-  emoji?: string;
-};
-
-type AddResourceItemModalProps = {
+type AddResourceSectionModalProps = {
   isOpen: boolean;
   onClose: () => void;
-  onSave: (data: { item: string; section: string; emoji: string }) => void;
+  onSave: (data: { title: string; emoji: string }) => void;
   isSaving: boolean;
-  defaultSection: string;
-  sectionOptions: ResourceSectionOption[];
 };
 
-const AddResourceItemModal = ({
+const AddResourceSectionModal = ({
   isOpen,
   onClose,
   onSave,
   isSaving,
-  defaultSection,
-  sectionOptions,
-}: AddResourceItemModalProps) => {
-  const [item, setItem] = useState('');
-  const [section, setSection] = useState(defaultSection);
+}: AddResourceSectionModalProps) => {
+  const [title, setTitle] = useState('');
   const [emoji, setEmoji] = useState('📦');
 
   useEffect(() => {
     if (isOpen) {
-      setItem('');
+      setTitle('');
       setEmoji('📦');
-      setSection(defaultSection || sectionOptions[0]?.title || '');
     }
-  }, [isOpen, defaultSection, sectionOptions]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    if (!item.trim() || !section.trim()) return;
+    if (!title.trim()) return;
 
     onSave({
-      item,
-      section,
+      title,
       emoji: emoji.trim() || '📦',
     });
   };
 
   return (
-    <div className="fixed inset-0 z-[800] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+    <div className="fixed inset-0 z-[850] flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
       <div className="bg-white w-full max-w-sm rounded-[3rem] p-8 shadow-2xl border-t-[10px] border-amber-600 animate-in zoom-in-95">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-xl font-black text-stone-900 uppercase tracking-tighter">
-              Novo card
+              Novo tópico
             </h3>
 
             <p className="text-[8px] font-black text-stone-400 uppercase tracking-widest mt-1">
-              Cadastrar item
+              Criar nova categoria
             </p>
           </div>
 
@@ -73,40 +61,21 @@ const AddResourceItemModal = ({
         <div className="space-y-4">
           <div>
             <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest ml-2">
-              Nome do item
+              Nome do tópico
             </label>
 
             <input
               type="text"
-              placeholder="Ex: ÁGUA MINERAL"
+              placeholder="Ex: DESCARTÁVEIS"
               className="w-full mt-1 bg-stone-50 border-2 border-stone-100 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-amber-600"
-              value={item}
-              onChange={(e) => setItem(e.target.value)}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
             />
           </div>
 
           <div>
             <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest ml-2">
-              Tópico
-            </label>
-
-            <select
-              className="w-full mt-1 bg-stone-50 border-2 border-stone-100 rounded-2xl p-4 text-xs font-black uppercase outline-none focus:border-amber-600"
-              value={section}
-              onChange={(e) => setSection(e.target.value)}
-            >
-              {sectionOptions.map((option) => (
-                <option key={option.title} value={option.title}>
-                  {option.emoji ? `${option.emoji} ` : ''}
-                  {option.title}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-[8px] font-black text-stone-400 uppercase tracking-widest ml-2">
-              Emoji do card
+              Emoji do tópico
             </label>
 
             <input
@@ -122,11 +91,11 @@ const AddResourceItemModal = ({
           <button
             type="button"
             onClick={handleSave}
-            disabled={!item.trim() || !section.trim() || isSaving}
+            disabled={!title.trim() || isSaving}
             className="w-full flex items-center justify-center gap-3 bg-[#3e2723] text-white rounded-2xl py-5 font-black text-[10px] uppercase tracking-[0.2em] shadow-xl border-b-4 border-black disabled:opacity-50 active:scale-95 transition-all"
           >
-            <PlusCircle size={16} />
-            {isSaving ? 'Salvando...' : 'Salvar card'}
+            <FolderPlus size={16} />
+            {isSaving ? 'Salvando...' : 'Salvar tópico'}
           </button>
         </div>
       </div>
@@ -134,4 +103,4 @@ const AddResourceItemModal = ({
   );
 };
 
-export default AddResourceItemModal;
+export default AddResourceSectionModal;

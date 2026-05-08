@@ -1,4 +1,4 @@
-import { Lock, Pencil, Plus, PlusCircle } from 'lucide-react';
+import { Lock, Pencil, Plus, PlusCircle, Trash2 } from 'lucide-react';
 import ResourceForm from './ResourceForm';
 
 type SectionProps = {
@@ -10,6 +10,8 @@ type SectionProps = {
   isResource?: boolean;
   onEdit: (person: any, item: string) => void;
   onAddItem?: () => void;
+  onDeleteSection?: () => void;
+  canDeleteSection?: boolean;
   activeItemTarget: string | null;
   setActiveItemTarget: (value: string | null) => void;
   editingId: string | null;
@@ -42,6 +44,8 @@ const Section = ({
   isResource,
   onEdit,
   onAddItem,
+  onDeleteSection,
+  canDeleteSection,
   activeItemTarget,
   setActiveItemTarget,
   editingId,
@@ -55,32 +59,65 @@ const Section = ({
   isSaving,
   isAdmin,
   hideQty,
-}: SectionProps) =>
-  items.length > 0 && (
-    <div className="mb-8 w-full">
-      <div className="flex items-center justify-between gap-3 mb-6">
-        <div
-          className={`flex items-center gap-3 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90 text-left`}
-        >
-          <Icon size={18} className="shrink-0" />
+}: SectionProps) => (
+  <div className="mb-8 w-full">
+    <div className="flex items-center justify-between gap-3 mb-6">
+      <div
+        className={`flex items-center gap-3 p-3 rounded-2xl ${color} ${bgColor} w-fit pr-6 shadow-md border border-white opacity-90 text-left`}
+      >
+        <Icon size={18} className="shrink-0" />
 
-          <p className="text-[10px] font-black uppercase tracking-widest leading-none text-current">
-            {title}
-          </p>
+        <p className="text-[10px] font-black uppercase tracking-widest leading-none text-current">
+          {title}
+        </p>
+      </div>
+
+      {isResource && isAdmin && (
+        <div className="flex items-center gap-2">
+          {onAddItem && (
+            <button
+              type="button"
+              onClick={onAddItem}
+              className="flex items-center gap-2 bg-white text-[#3e2723] border border-stone-200 rounded-2xl px-4 py-3 font-black text-[8px] uppercase tracking-widest shadow-md active:scale-95 transition-all"
+            >
+              <Plus size={14} />
+              Novo item
+            </button>
+          )}
+
+          {canDeleteSection && onDeleteSection && (
+            <button
+              type="button"
+              onClick={onDeleteSection}
+              className="flex items-center justify-center bg-red-50 text-red-600 border border-red-100 rounded-2xl px-3 py-3 font-black text-[8px] uppercase tracking-widest shadow-md active:scale-95 hover:bg-red-100 transition-all"
+              title="Remover tópico"
+              aria-label="Remover tópico"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
         </div>
+      )}
+    </div>
+
+    {items.length === 0 ? (
+      <div className="bg-white/70 border-2 border-dashed border-stone-200 rounded-[2rem] p-8 text-center shadow-sm">
+        <p className="text-[10px] font-black text-stone-300 uppercase tracking-widest">
+          Nenhum item cadastrado neste tópico ainda.
+        </p>
 
         {isResource && isAdmin && onAddItem && (
           <button
             type="button"
             onClick={onAddItem}
-            className="flex items-center gap-2 bg-white text-[#3e2723] border border-stone-200 rounded-2xl px-4 py-3 font-black text-[8px] uppercase tracking-widest shadow-md active:scale-95 transition-all"
+            className="mt-4 inline-flex items-center gap-2 bg-[#3e2723] text-white rounded-2xl px-5 py-3 font-black text-[9px] uppercase tracking-widest shadow-lg active:scale-95 transition-all"
           >
             <Plus size={14} />
-            Novo item
+            Adicionar primeiro item
           </button>
         )}
       </div>
-
+    ) : (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
         {items.map((i, idx) => (
           <div
@@ -190,7 +227,8 @@ const Section = ({
           </div>
         ))}
       </div>
-    </div>
-  );
+    )}
+  </div>
+);
 
 export default Section;

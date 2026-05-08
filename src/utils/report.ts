@@ -10,6 +10,18 @@ type ReportItem = {
   people: ReportPerson[];
 };
 
+type ReportSection = {
+  title: string;
+  items: ReportItem[];
+};
+
+type OldAllItemsForReport = {
+  comidas: ReportItem[];
+  bebidas: ReportItem[];
+  velas: ReportItem[];
+  fundamento: ReportItem[];
+};
+
 type BuildReportTextParams = {
   officialDate: string;
   totalParticipants: number;
@@ -21,14 +33,14 @@ type BuildReportTextParams = {
   costPerPerson: number;
   totalReceived: number;
   remainingTarget: number;
-  allItemsForReport: {
-    comidas: ReportItem[];
-    bebidas: ReportItem[];
-    velas: ReportItem[];
-    fundamento: ReportItem[];
-  };
   payments: Record<string, any>;
   attendance: Record<string, any>;
+
+  // Novo formato dinâmico
+  reportSections?: ReportSection[];
+
+  // Formato antigo, mantido por segurança
+  allItemsForReport?: OldAllItemsForReport;
 };
 
 type GenerateReportPdfParams = {
@@ -36,6 +48,32 @@ type GenerateReportPdfParams = {
   officialDate: string;
   generatedAt: string;
   logoPath?: string;
+};
+
+const getReportSections = ({
+  reportSections,
+  allItemsForReport,
+}: {
+  reportSections?: ReportSection[];
+  allItemsForReport?: OldAllItemsForReport;
+}) => {
+  if (reportSections && reportSections.length > 0) {
+    return reportSections;
+  }
+
+  if (!allItemsForReport) {
+    return [];
+  }
+
+  return [
+    { title: 'MESA DE COMIDAS', items: allItemsForReport.comidas },
+    { title: 'CAFÉ E BEBIDAS', items: allItemsForReport.bebidas },
+    { title: 'VELAS DE SÉTIMO DIA', items: allItemsForReport.velas },
+    {
+      title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO',
+      items: allItemsForReport.fundamento,
+    },
+  ];
 };
 
 export const buildReportText = ({
@@ -49,10 +87,16 @@ export const buildReportText = ({
   costPerPerson,
   totalReceived,
   remainingTarget,
-  allItemsForReport,
   payments,
   attendance,
+  reportSections,
+  allItemsForReport,
 }: BuildReportTextParams) => {
+  const sections = getReportSections({
+    reportSections,
+    allItemsForReport,
+  });
+
   const getStatus = (name: string) => attendance[name]?.status || 'pending';
 
   const statusLabel = (status: string) => {
@@ -156,6 +200,8 @@ export const buildReportText = ({
 
   report += `5. DETALHAMENTO DAS PESSOAS NA COTA\n\n`;
 
+  const allItems = sections.flatMap((section) => section.items);
+
   quotaParticipantsList.forEach((name) => {
     const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
     const paid = Number(pay.paid) || 0;
@@ -164,16 +210,13 @@ export const buildReportText = ({
     const status = isFullyPaid ? 'PAGO (QUITADO)' : paid > 0 ? 'PAGO (PARCIAL)' : 'PENDENTE';
 
     const userItems: string[] = [];
-    const allCategories = [
-      ...allItemsForReport.comidas,
-      ...allItemsForReport.bebidas,
-      ...allItemsForReport.velas,
-      ...allItemsForReport.fundamento,
-    ];
 
-    allCategories.forEach((item) => {
+    allItems.forEach((item) => {
       const found = item.people.find((p) => p.name === name);
-      if (found) userItems.push(`${item.item} (${found.qty})`);
+
+      if (found) {
+        userItems.push(`${item.item} (${found.qty})`);
+      }
     });
 
     report += `👤 NOME: ${name}\n`;
@@ -183,8 +226,13 @@ export const buildReportText = ({
     report += `   VALOR FALTANTE: ${formatCurrency(balance)}\n`;
     report += `   O QUE LEVOU: ${userItems.length > 0 ? userItems.join(', ') : 'NENHUM ITEM SELECIONADO'}\n`;
 
-    if (pay.proof) report += `   COMPROVANTE: ${pay.proof}\n`;
-    if (pay.updatedAt) report += `   ÚLTIMA ATUALIZAÇÃO: ${new Date(pay.updatedAt).toLocaleString('pt-BR')}\n`;
+    if (pay.proof) {
+      report += `   COMPROVANTE: ${pay.proof}\n`;
+    }
+
+    if (pay.updatedAt) {
+      report += `   ÚLTIMA ATUALIZAÇÃO: ${new Date(pay.updatedAt).toLocaleString('pt-BR')}\n`;
+    }
 
     report += `\n`;
   });
@@ -201,25 +249,31 @@ export const buildReportText = ({
     });
   }
 
-  report += `7. RESUMO DE MATERIAIS POR CATEGORIA\n\n`;
+  report += `7. RESUMO DE MATERIAIS POR TÓPICO\n\n`;
 
-  const cats = [
-    { title: 'MESA DE COMIDAS', data: allItemsForReport.comidas },
-    { title: 'CAFÉ E BEBIDAS', data: allItemsForReport.bebidas },
-    { title: 'VELAS DE SÉTIMO DIA', data: allItemsForReport.velas },
-    { title: 'FUNDAMENTOS DE EXU ONAN E CATIÇO', data: allItemsForReport.fundamento },
-  ];
+  if (sections.length === 0) {
+    report += `- Nenhum tópico cadastrado.\n\n`;
+  } else {
+    sections.forEach((section) => {
+      report += `[${section.title}]\n`;
 
-  cats.forEach((cat) => {
-    report += `[${cat.title}]\n`;
+      if (section.items.length === 0) {
+        report += `  - Nenhum item cadastrado neste tópico.\n`;
+      } else {
+        section.items.forEach((item) => {
+          const resps = item.people.map((p) => `${p.name} (${p.qty})`).join(', ');
 
-    cat.data.forEach((item) => {
-      const resps = item.people.map((p) => `${p.name} (${p.qty})`).join(', ');
-      if (resps) report += `  - ${item.item}: ${resps}\n`;
+          if (resps) {
+            report += `  - ${item.item}: ${resps}\n`;
+          } else {
+            report += `  - ${item.item}: sem responsável\n`;
+          }
+        });
+      }
+
+      report += `\n`;
     });
-
-    report += `\n`;
-  });
+  }
 
   report += `8. OBSERVAÇÕES FINAIS\n\n`;
   report += `Este relatório consolida as informações registradas no dashboard da Obrigação de Pretos Velhos, incluindo confirmações, comparecimento, contribuições financeiras e materiais organizados.\n\n`;
@@ -242,6 +296,7 @@ export const formatReportHtml = (text: string) => {
     .replace(/^4\. STATUS DOS PAGAMENTOS$/gm, '<strong>4. STATUS DOS PAGAMENTOS</strong>')
     .replace(/^5\. DETALHAMENTO DAS PESSOAS NA COTA$/gm, '<strong>5. DETALHAMENTO DAS PESSOAS NA COTA</strong>')
     .replace(/^6\. PESSOAS SEM COTA$/gm, '<strong>6. PESSOAS SEM COTA</strong>')
+    .replace(/^7\. RESUMO DE MATERIAIS POR TÓPICO$/gm, '<strong>7. RESUMO DE MATERIAIS POR TÓPICO</strong>')
     .replace(/^7\. RESUMO DE MATERIAIS POR CATEGORIA$/gm, '<strong>7. RESUMO DE MATERIAIS POR CATEGORIA</strong>')
     .replace(/^8\. OBSERVAÇÕES FINAIS$/gm, '<strong>8. OBSERVAÇÕES FINAIS</strong>')
 
@@ -252,10 +307,7 @@ export const formatReportHtml = (text: string) => {
     .replace(/^PAGAMENTOS PARCIAIS:$/gm, '<strong>PAGAMENTOS PARCIAIS:</strong>')
     .replace(/^PESSOAS PENDENTES:$/gm, '<strong>PESSOAS PENDENTES:</strong>')
 
-    .replace(/^\[MESA DE COMIDAS\]$/gm, '<strong>[MESA DE COMIDAS]</strong>')
-    .replace(/^\[CAFÉ E BEBIDAS\]$/gm, '<strong>[CAFÉ E BEBIDAS]</strong>')
-    .replace(/^\[VELAS DE SÉTIMO DIA\]$/gm, '<strong>[VELAS DE SÉTIMO DIA]</strong>')
-    .replace(/^\[FUNDAMENTOS DE EXU ONAN E CATIÇO\]$/gm, '<strong>[FUNDAMENTOS DE EXU ONAN E CATIÇO]</strong>');
+    .replace(/^\[(.+)\]$/gm, '<strong>[$1]</strong>');
 };
 
 const getLogoAsBase64 = async (logoPath: string) => {
@@ -287,9 +339,7 @@ export const generateReportPdf = async ({
 }: GenerateReportPdfParams) => {
   const logoUrl = await getLogoAsBase64(logoPath);
 
-  const logoHtml = logoUrl
-    ? `<img src="${logoUrl}" alt="Logo do Ilè" class="logo" />`
-    : '';
+  const logoHtml = logoUrl ? `<img src="${logoUrl}" alt="Logo do Ilè" class="logo" />` : '';
 
   const html = `<!doctype html>
     <html lang="pt-BR">
