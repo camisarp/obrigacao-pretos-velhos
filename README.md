@@ -1,73 +1,327 @@
-# React + TypeScript + Vite
+# Obrigação Pretos Velhos 2026
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Dashboard web para organização da Obrigação de Pretos Velhos do **Ilè Asè Ôgún Méjèje ty Ộ'ṣun Íjimú**.
 
-Currently, two official plugins are available:
+O projeto foi criado para facilitar o controle de presença, divisão financeira, organização de materiais, responsáveis por itens e geração de relatório final em PDF.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Funcionalidades
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Controle de confirmação de presença por data
+- Definição de data oficial da obrigação
+- Controle financeiro da cota por pessoa
+- Registro de valores pagos
+- Registro de links de comprovantes
+- Controle de comparecimento no dia da obrigação
+- Pessoas na cota e pessoas fora da cota
+- Cadastro de novos tópicos pelo modo administrador
+- Remoção/desativação de tópicos criados
+- Cadastro de novos cards/itens por tópico
+- Remoção/desativação de cards criados
+- Cadastro de responsáveis por item
+- Remoção de responsáveis
+- Relatório final com resumo geral, financeiro, presença e materiais
+- Geração de relatório em PDF com logo do Ilè
+- Dados sincronizados em tempo real com Firebase/Firestore
+- Layout responsivo para celular e desktop
+- Deploy via Vercel
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Tecnologias utilizadas
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+- React
+- TypeScript
+- Vite
+- TailwindCSS
+- Firebase Authentication
+- Firestore Database
+- Lucide React
+- Vercel
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+---
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## 📁 Estrutura do projeto
+
+```txt
+public/
+  favicon.svg
+  logo-ile.png
+
+src/
+  components/
+    AddResourceItemModal.tsx
+    AddResourceSectionModal.tsx
+    AttendanceControl.tsx
+    BackToTopButton.tsx
+    CurrencyInput.tsx
+    ReportModal.tsx
+    ResourceForm.tsx
+    Section.tsx
+
+  config/
+    firebase.ts
+
+  data/
+    staticData.ts
+
+  utils/
+    formatters.ts
+    normalizeName.ts
+    report.ts
+
+  App.css
+  App.tsx
+  index.css
+  main.tsx
+
+.env.example
+.gitignore
+eslint.config.js
+index.html
+package-lock.json
+package.json
+README.md
+tsconfig.app.json
+tsconfig.json
+tsconfig.node.json
+vite.config.ts
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+---
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## 🔐 Variáveis de ambiente
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+O projeto usa variáveis de ambiente para proteger configurações sensíveis e evitar dados fixos diretamente no código.
+
+Crie um arquivo **`.env.local`** na raiz do projeto:
+
+```env
+VITE_ADMIN_PIN=seu_pin_admin
+
+VITE_FIREBASE_API_KEY=sua_api_key
+VITE_FIREBASE_AUTH_DOMAIN=seu_auth_domain
+VITE_FIREBASE_PROJECT_ID=seu_project_id
+VITE_FIREBASE_STORAGE_BUCKET=seu_storage_bucket
+VITE_FIREBASE_MESSAGING_SENDER_ID=seu_messaging_sender_id
+VITE_FIREBASE_APP_ID=seu_app_id
 ```
+
+Também existe o arquivo:
+
+```txt
+.env.example
+```
+
+Ele serve como modelo para indicar quais variáveis são necessárias, sem expor valores reais.
+
+> O arquivo `.env.local` não deve ser enviado para o GitHub.
+
+---
+
+## ▶️ Como rodar o projeto localmente
+
+Clone o repositório:
+
+```bash
+git clone https://github.com/seu-usuario/obrigacao-pretos-velhos.git
+```
+
+Entre na pasta:
+
+```bash
+cd obrigacao-pretos-velhos
+```
+
+Instale as dependências:
+
+```bash
+npm install
+```
+
+Crie o arquivo `.env.local` com as variáveis necessárias.
+
+Rode o projeto:
+
+```bash
+npm run dev
+```
+
+Acesse no navegador:
+
+```txt
+http://localhost:5173
+```
+
+---
+
+## 🧪 Build de produção
+
+Para gerar o build:
+
+```bash
+npm run build
+```
+
+Para visualizar o build localmente:
+
+```bash
+npm run preview
+```
+
+---
+
+## 🔥 Firebase
+
+O projeto utiliza Firebase para:
+
+- Login anônimo
+- Armazenamento de confirmações de presença
+- Armazenamento de pagamentos
+- Armazenamento de tópicos e cards dinâmicos
+- Controle de responsáveis por item
+- Controle de presença real no dia da obrigação
+- Configuração da data oficial
+
+Coleções utilizadas:
+
+```txt
+votes
+prices
+settings
+extra_items
+resource_items
+resource_sections
+payments
+attendance
+```
+
+---
+
+## 👑 Modo administrador
+
+O modo administrador permite:
+
+- Definir a data oficial
+- Editar valores dos materiais
+- Registrar pagamentos
+- Registrar comprovantes
+- Marcar presença real
+- Criar tópicos
+- Remover tópicos criados
+- Criar cards
+- Remover cards criados
+- Adicionar responsáveis
+- Remover responsáveis
+- Gerar relatório final
+
+O PIN de administrador é definido pela variável:
+
+```env
+VITE_ADMIN_PIN
+```
+
+---
+
+## 📊 Relatório final
+
+O relatório final consolida:
+
+- Data oficial
+- Total de pessoas confirmadas
+- Pessoas na cota
+- Pessoas fora da cota
+- Custo total dos materiais
+- Valor por pessoa
+- Total arrecadado
+- Pendência geral
+- Status de pagamento
+- Status de comparecimento
+- Itens levados por pessoa
+- Materiais organizados por tópico
+- Observações finais
+
+O relatório pode ser visualizado no app e exportado como PDF.
+
+---
+
+## 🚀 Deploy
+
+O projeto está preparado para deploy na Vercel.
+
+Na Vercel, cadastre as mesmas variáveis do `.env.local` em:
+
+```txt
+Project Settings → Environment Variables
+```
+
+Variáveis necessárias:
+
+```txt
+VITE_ADMIN_PIN
+VITE_FIREBASE_API_KEY
+VITE_FIREBASE_AUTH_DOMAIN
+VITE_FIREBASE_PROJECT_ID
+VITE_FIREBASE_STORAGE_BUCKET
+VITE_FIREBASE_MESSAGING_SENDER_ID
+VITE_FIREBASE_APP_ID
+```
+
+Para testar branches antes de publicar na versão principal, utilize os deploys de **Preview** da Vercel.
+
+---
+
+## ⚠️ Observação sobre dados
+
+Mesmo em deploys de Preview, o app pode usar o mesmo Firebase configurado nas variáveis de ambiente.
+
+Isso significa que alterações feitas em Preview podem afetar os dados reais do banco, como:
+
+- criação de tópicos
+- remoção de cards
+- alteração de pagamentos
+- presença
+- responsáveis por item
+
+---
+
+## 🧹 Boas práticas aplicadas
+
+- Separação de componentes
+- Configuração do Firebase em arquivo próprio
+- Utilitários separados para formatação, normalização e relatório
+- Variáveis de ambiente para dados sensíveis
+- `.env.local` fora do GitHub
+- `.env.example` como modelo
+- Estrutura limpa de pastas
+- Componentes reutilizáveis
+- Build testado antes do deploy
+
+---
+
+## 📌 Status do projeto
+
+Primeira versão funcional concluída.
+
+Funcionalidades principais implementadas:
+
+```txt
+✅ Dashboard
+✅ Financeiro
+✅ Presença
+✅ Modo administrador
+✅ Tópicos dinâmicos
+✅ Cards dinâmicos
+✅ Relatório final
+✅ PDF
+✅ Firebase
+✅ Deploy na Vercel
+```
+
+---
+
+## 🌿 Saudação
+
+Saravá Pretos Velhos.  
+Adorei as Almas.
