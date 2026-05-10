@@ -12,9 +12,9 @@ O projeto foi criado para facilitar o controle de presença, divisão financeira
 - Definição de data oficial da obrigação
 - Controle financeiro da cota por pessoa
 - Registro de valores pagos
-- Registro de links de comprovantes
+- Registro de links de comprovantes visível apenas para administradores
 - Controle de comparecimento no dia da obrigação
-- Pessoas na cota e pessoas fora da cota
+- Separação entre pessoas na cota e pessoas fora da cota
 - Cadastro de novos tópicos pelo modo administrador
 - Remoção/desativação de tópicos criados
 - Cadastro de novos cards/itens por tópico
@@ -22,6 +22,7 @@ O projeto foi criado para facilitar o controle de presença, divisão financeira
 - Cadastro de responsáveis por item
 - Remoção de responsáveis
 - Relatório final com resumo geral, financeiro, presença e materiais
+- Relatório final com links de comprovantes para uso administrativo
 - Geração de relatório em PDF com logo do Ilè
 - Dados sincronizados em tempo real com Firebase/Firestore
 - Layout responsivo para celular e desktop
@@ -178,7 +179,9 @@ O projeto utiliza Firebase para:
 
 - Login anônimo
 - Armazenamento de confirmações de presença
+- Armazenamento de valores dos materiais
 - Armazenamento de pagamentos
+- Armazenamento de comprovantes
 - Armazenamento de tópicos e cards dinâmicos
 - Controle de responsáveis por item
 - Controle de presença real no dia da obrigação
@@ -206,21 +209,24 @@ O modo administrador permite:
 - Definir a data oficial
 - Editar valores dos materiais
 - Registrar pagamentos
-- Registrar comprovantes
-- Marcar presença real
+- Visualizar e editar links de comprovantes
+- Registrar presença real no dia da obrigação
 - Criar tópicos
 - Remover tópicos criados
 - Criar cards
 - Remover cards criados
-- Adicionar responsáveis
-- Remover responsáveis
+- Adicionar responsáveis por item
+- Remover responsáveis por item
 - Gerar relatório final
+- Gerar PDF do relatório final com os links dos comprovantes
 
 O PIN de administrador é definido pela variável:
 
 ```env
 VITE_ADMIN_PIN
 ```
+
+Usuários comuns conseguem visualizar o dashboard e a área financeira, mas não veem os links de comprovantes nem os controles administrativos.
 
 ---
 
@@ -240,9 +246,12 @@ O relatório final consolida:
 - Status de comparecimento
 - Itens levados por pessoa
 - Materiais organizados por tópico
+- Links dos comprovantes
 - Observações finais
 
 O relatório pode ser visualizado no app e exportado como PDF.
+
+> O relatório final é uma funcionalidade administrativa.
 
 ---
 
@@ -272,6 +281,25 @@ Para testar branches antes de publicar na versão principal, utilize os deploys 
 
 ---
 
+## 🌱 Branches e deploy
+
+Durante o desenvolvimento, alterações podem ser feitas em uma branch separada da `main`.
+
+Exemplo:
+
+```txt
+refactor/organiza-estrutura
+```
+
+Na Vercel:
+
+- `main` gera o deploy de produção
+- outras branches geram deploys de preview
+
+Antes de fazer merge para a `main`, recomenda-se testar tudo no Preview da branch.
+
+---
+
 ## ⚠️ Observação sobre dados
 
 Mesmo em deploys de Preview, o app pode usar o mesmo Firebase configurado nas variáveis de ambiente.
@@ -281,7 +309,8 @@ Isso significa que alterações feitas em Preview podem afetar os dados reais do
 - criação de tópicos
 - remoção de cards
 - alteração de pagamentos
-- presença
+- alteração de comprovantes
+- marcação de presença
 - responsáveis por item
 
 ---
@@ -297,6 +326,8 @@ Isso significa que alterações feitas em Preview podem afetar os dados reais do
 - Estrutura limpa de pastas
 - Componentes reutilizáveis
 - Build testado antes do deploy
+- Comprovantes restritos ao modo administrador
+- Relatório tratado como funcionalidade administrativa
 
 ---
 
@@ -313,6 +344,8 @@ Funcionalidades principais implementadas:
 ✅ Modo administrador
 ✅ Tópicos dinâmicos
 ✅ Cards dinâmicos
+✅ Responsáveis por item
+✅ Comprovantes restritos ao ADM
 ✅ Relatório final
 ✅ PDF
 ✅ Firebase
