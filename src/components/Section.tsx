@@ -11,6 +11,7 @@ type SectionProps = {
   onEdit: (person: any, item: string) => void;
   onAddItem?: () => void;
   onDeleteSection?: () => void;
+  onDeleteItem?: (item: any) => void;
   canDeleteSection?: boolean;
   activeItemTarget: string | null;
   setActiveItemTarget: (value: string | null) => void;
@@ -45,6 +46,7 @@ const Section = ({
   onEdit,
   onAddItem,
   onDeleteSection,
+  onDeleteItem,
   canDeleteSection,
   activeItemTarget,
   setActiveItemTarget,
@@ -143,22 +145,36 @@ const Section = ({
                 </div>
 
                 {isResource && (
-                  <button
-                    onClick={() =>
-                      isAdmin &&
-                      (setActiveItemTarget(activeItemTarget === i.item ? null : i.item),
-                      setEditingId(null),
-                      setNewItemResp(''),
-                      setNewItemQty(''))
-                    }
-                    className={`p-2 rounded-xl transition-all shadow-md shrink-0 ml-2 border-b-2 ${
-                      isAdmin
-                        ? 'bg-[#3e2723] text-white active:scale-90 border-black shadow-amber-900/20'
-                        : 'bg-stone-50 text-stone-300 cursor-not-allowed'
-                    }`}
-                  >
-                    {isAdmin ? <PlusCircle size={18} /> : <Lock size={18} />}
-                  </button>
+                  <div className="flex items-center gap-1 shrink-0 ml-2">
+                    <button
+                      onClick={() =>
+                        isAdmin &&
+                        (setActiveItemTarget(activeItemTarget === i.item ? null : i.item),
+                        setEditingId(null),
+                        setNewItemResp(''),
+                        setNewItemQty(''))
+                      }
+                      className={`p-2 rounded-xl transition-all shadow-md border-b-2 ${
+                        isAdmin
+                          ? 'bg-[#3e2723] text-white active:scale-90 border-black shadow-amber-900/20'
+                          : 'bg-stone-50 text-stone-300 cursor-not-allowed'
+                      }`}
+                    >
+                      {isAdmin ? <PlusCircle size={18} /> : <Lock size={18} />}
+                    </button>
+
+                    {isAdmin && i.canDeleteItem && onDeleteItem && (
+                      <button
+                        type="button"
+                        onClick={() => onDeleteItem(i)}
+                        className="p-2 rounded-xl bg-red-50 text-red-600 border border-red-100 shadow-md border-b-2 active:scale-90 hover:bg-red-100 transition-all"
+                        title="Remover card"
+                        aria-label="Remover card"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
