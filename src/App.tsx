@@ -147,6 +147,8 @@ const App = () => {
   const [newItemDefaultSection, setNewItemDefaultSection] = useState('MESA DE COMIDAS');
 
   const [adminInput, setAdminInput] = useState('');
+  const [adminError, setAdminError] = useState('');
+
   const [selectedDateId, setSelectedDateId] = useState<string | null>(null);
   const [tempName, setTempName] = useState('');
 
@@ -819,8 +821,10 @@ const App = () => {
       localStorage.setItem('obrigacao_admin', 'true');
       setIsAdminModalOpen(false);
       setAdminInput('');
+      setAdminError('');
     } else {
       setAdminInput('');
+      setAdminError('PIN incorreto. Tente novamente.');
     }
   };
 
@@ -1474,9 +1478,18 @@ const App = () => {
               autoFocus
               className="w-full border-2 border-stone-100 rounded-2xl py-5 px-6 mb-6 outline-none focus:border-amber-600 font-black text-center bg-stone-50 text-stone-900 text-2xl tracking-[0.5em]"
               value={adminInput}
-              onChange={(e) => setAdminInput(e.target.value)}
+              onChange={(e) => {
+                setAdminInput(e.target.value);
+                setAdminError('');
+              }}
               onKeyDown={(e) => e.key === 'Enter' && tryAdminLogin()}
             />
+
+            {adminError && (
+              <p className="mb-4 text-center text-[10px] font-black uppercase tracking-widest text-red-600 bg-red-50 border border-red-100 rounded-2xl py-3 px-4">
+                {adminError}
+              </p>
+            )}
 
             <button
               onClick={tryAdminLogin}
@@ -1486,7 +1499,11 @@ const App = () => {
             </button>
 
             <button
-              onClick={() => setIsAdminModalOpen(false)}
+              onClick={() => {
+                setIsAdminModalOpen(false);
+                setAdminInput('');
+                setAdminError('');
+              }}
               className="w-full py-2 mt-2 text-stone-300 font-black text-[9px] uppercase tracking-widest"
             >
               Cancelar
