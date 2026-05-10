@@ -52,7 +52,7 @@ import { formatCurrency } from './utils/formatters';
 import { normalizeName } from './utils/normalizeName';
 import { buildReportText } from './utils/report';
 
-const ADMIN_PIN = '2026';
+const ADMIN_PIN = import.meta.env.VITE_ADMIN_PIN || '';
 
 const NOMES_FORA_DA_COTA = ['CAMILA21', 'CAMILA 21', 'BIA'];
 
