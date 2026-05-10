@@ -373,10 +373,12 @@ const App = () => {
       );
 
       return {
+        id: dynamicItem?.id || null,
         item: name,
         total: people.reduce((acc: number, person: any) => acc + Math.max(0, person.qty), 0),
         emoji: dynamicItem?.emoji || emojiMap[name] || '📦',
         people,
+        canDeleteItem: Boolean(dynamicItem?.id),
       };
     });
   };
@@ -548,10 +550,6 @@ const App = () => {
           })
         )
       );
-
-      if (normalizeName(activeItemTarget) === normalizeName(section.title)) {
-        setActiveItemTarget(null);
-      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -586,6 +584,50 @@ const App = () => {
       });
 
       setIsNewItemModalOpen(false);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteResourceItem = async (item: any) => {
+    if (!user || !isAdmin || !item?.id || !item?.canDeleteItem) return;
+
+    const confirmed = window.confirm(
+      `Deseja remover o card "${item.item}"?\n\nOs responsáveis cadastrados nesse card também serão ocultados.`
+    );
+
+    if (!confirmed) return;
+
+    setIsSaving(true);
+
+    try {
+      await updateDoc(doc(db, 'resource_items', item.id), {
+        active: false,
+        deletedAt: Date.now(),
+      });
+
+      const relatedResponsibles = additionalItems.filter((entry) => {
+        return normalizeName(entry.item) === normalizeName(item.item);
+      });
+
+      await Promise.all(
+        relatedResponsibles.map((entry) =>
+          updateDoc(doc(db, 'extra_items', entry.id), {
+            qty: -1,
+            section: 'removed',
+            deletedAt: Date.now(),
+          })
+        )
+      );
+
+      if (normalizeName(activeItemTarget || '') === normalizeName(item.item)) {
+        setActiveItemTarget(null);
+        setEditingId(null);
+        setNewItemResp('');
+        setNewItemQty('');
+      }
     } catch (e) {
       console.error(e);
     } finally {
@@ -1169,6 +1211,7 @@ const App = () => {
                   isResource
                   onAddItem={() => openNewItemModal(section.title)}
                   onDeleteSection={() => handleDeleteResourceSection(section)}
+                  onDeleteItem={handleDeleteResourceItem}
                   canDeleteSection={section.canDelete}
                   onEdit={startEdit}
                   activeItemTarget={activeItemTarget}
