@@ -1347,29 +1347,30 @@ const App = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-2 rounded-2xl p-2.5 border bg-white border-stone-200 shadow-inner group transition-all">
-                        <FileText size={14} className="text-stone-300" />
+                      {isAdmin && (
+                        <div className="flex items-center gap-2 rounded-2xl p-2.5 border bg-white border-stone-200 shadow-inner group transition-all">
+                          <FileText size={14} className="text-stone-300" />
 
-                        <input
-                          type="text"
-                          placeholder="LINK DO COMPROVANTE"
-                          className="w-full bg-transparent outline-none font-bold text-[9px] text-stone-600 placeholder:opacity-20 uppercase"
-                          value={String(pay.proof || '')}
-                          onChange={(e) => updatePayment(name, 'proof', e.target.value)}
-                          disabled={!isAdmin}
-                        />
+                          <input
+                            type="text"
+                            placeholder="LINK DO COMPROVANTE"
+                            className="w-full bg-transparent outline-none font-bold text-[9px] text-stone-600 placeholder:opacity-20 uppercase"
+                            value={String(pay.proof || '')}
+                            onChange={(e) => updatePayment(name, 'proof', e.target.value)}
+                          />
 
-                        {pay.proof && (
-                          <a
-                            href={pay.proof}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:scale-110 transition-transform"
-                          >
-                            <ExternalLink size={14} />
-                          </a>
-                        )}
-                      </div>
+                          {pay.proof && (
+                            <a
+                              href={pay.proof}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:scale-110 transition-transform"
+                            >
+                              <ExternalLink size={14} />
+                            </a>
+                          )}
+                        </div>
+                      )}
 
                       {isAdmin && (
                         <AttendanceControl
