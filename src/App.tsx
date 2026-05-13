@@ -440,6 +440,34 @@ const App = () => {
   const remainingTarget = Math.max(0, totalCost - totalReceived);
   const percentCollected = totalCost > 0 ? (totalReceived / totalCost) * 100 : 0;
 
+  const sortedQuotaParticipantsList = useMemo(() => {
+    const getPaymentPriority = (name: string) => {
+      const pay = payments[name] || { paid: 0 };
+      const paid = Number(pay.paid) || 0;
+  
+      if (costPerPerson > 0 && paid >= costPerPerson) {
+        return 3; // quitado fica por último
+      }
+  
+      if (paid > 0) {
+        return 2; // parcial fica no meio
+      }
+  
+      return 1; // pendente fica primeiro
+    };
+  
+    return [...quotaParticipantsList].sort((a, b) => {
+      const priorityA = getPaymentPriority(a);
+      const priorityB = getPaymentPriority(b);
+  
+      if (priorityA !== priorityB) {
+        return priorityA - priorityB;
+      }
+  
+      return a.localeCompare(b, 'pt-BR');
+    });
+  }, [quotaParticipantsList, payments, costPerPerson]);
+
   const dateOptions = [
     { id: 'sabado', label: 'SÁBADO, 16/05', color: 'bg-[#3e2723]' },
     { id: 'domingo', label: 'DOMINGO, 17/05', color: 'bg-[#1a1a1a]' },
@@ -1284,7 +1312,7 @@ const App = () => {
                   </div>
                 )}
 
-                {quotaParticipantsList.map((name) => {
+                {sortedQuotaParticipantsList.map((name) => {
                   const pay = payments[name] || { paid: 0, proof: '', updatedAt: 0 };
                   const paid = Number(pay.paid) || 0;
                   const isFullyPaid = costPerPerson > 0 && paid >= costPerPerson;
